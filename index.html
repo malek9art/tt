@@ -1,0 +1,3094 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الإيداعات والتحصيلات</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Cairo', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%);
+            min-height: 100vh;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%);
+            box-shadow: 0 8px 32px rgba(30, 58, 138, 0.3);
+        }
+        
+        .card-shadow {
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .mobile-card {
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .tab-active {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            box-shadow: 0 4px 20px rgba(30, 58, 138, 0.4);
+            border-radius: 16px;
+            transform: translateY(-2px);
+        }
+        
+        .tab-inactive {
+            background: rgba(248, 250, 252, 0.8);
+            color: #64748b;
+            border: 1px solid rgba(226, 232, 240, 0.5);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .input-focus {
+            border-radius: 16px;
+            border: 2px solid #e2e8f0;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .input-focus:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-1px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(30, 58, 138, 0.3);
+            border-radius: 16px;
+            font-weight: 600;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(30, 58, 138, 0.5);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.3);
+            border-radius: 16px;
+            font-weight: 600;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(5, 150, 105, 0.5);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            box-shadow: 0 6px 20px rgba(220, 38, 38, 0.3);
+            border-radius: 16px;
+            font-weight: 600;
+        }
+        
+        .btn-danger:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(220, 38, 38, 0.5);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.3);
+            border-radius: 16px;
+            font-weight: 600;
+        }
+        
+        .btn-warning:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(217, 119, 6, 0.5);
+        }
+        
+        .notification {
+            animation: slideIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            border-radius: 16px;
+            backdrop-filter: blur(20px);
+        }
+        
+        @keyframes slideIn {
+            from { 
+                transform: translateX(100%) scale(0.8); 
+                opacity: 0; 
+            }
+            to { 
+                transform: translateX(0) scale(1); 
+                opacity: 1; 
+            }
+        }
+        
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .summary-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(20px);
+        }
+        
+        .summary-item {
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .summary-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .mobile-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        
+        .mobile-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .mobile-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .mobile-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+        
+        .floating-action {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding-left: 16px;
+                padding-right: 16px;
+            }
+            
+            .mobile-card {
+                margin-bottom: 16px;
+                padding: 20px;
+            }
+            
+            .tab-active, .tab-inactive {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+            
+            .btn-primary, .btn-success, .btn-danger, .btn-warning {
+                padding: 14px 20px;
+                font-size: 16px;
+            }
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-2xl relative overflow-hidden">
+        <!-- Background Pattern -->
+        <div class="absolute inset-0 opacity-10">
+            <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/20 to-transparent"></div>
+            <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+        </div>
+        
+        <div class="container mx-auto px-4 py-6 relative z-10">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4 space-x-reverse">
+                    <!-- Enhanced Logo -->
+                    <div class="relative">
+                        <div class="h-16 w-16 rounded-2xl bg-gradient-to-br from-white to-blue-50 flex items-center justify-center shadow-xl border-2 border-white/30 backdrop-blur-sm">
+                            <img src="https://i.ibb.co/4T2Z7z3h/logo.png" alt="شعار الشركة" class="w-12 h-12 object-contain">
+                        </div>
+                        <!-- Glow Effect -->
+                        <div class="absolute inset-0 h-16 w-16 rounded-2xl bg-white/20 blur-md -z-10"></div>
+                    </div>
+                    
+                    <!-- Title Section -->
+                    <div class="flex flex-col">
+                        <h1 class="text-xl md:text-3xl font-black bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent drop-shadow-sm">
+                            نظام الإيداعات والتحصيلات
+                        </h1>
+                        <div class="flex items-center space-x-2 space-x-reverse mt-1">
+                            <div class="h-1 w-8 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full"></div>
+                            <p class="text-blue-100 text-sm md:text-base font-medium">
+                                إدارة العمليات المالية بشكل متطور
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Date and Time Section -->
+                <div class="text-left hidden sm:block">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/20">
+                        <div class="text-sm font-semibold text-white" id="currentDate"></div>
+                        <div class="text-xs text-blue-100 mt-1" id="currentTime"></div>
+                    </div>
+                </div>
+                
+                <!-- Mobile Date/Time -->
+                <div class="text-left sm:hidden">
+                    <div class="text-xs text-blue-100" id="currentDateMobile"></div>
+                    <div class="text-xs text-white font-semibold" id="currentTimeMobile"></div>
+                </div>
+            </div>
+            
+            <!-- Status Bar -->
+            <div class="mt-4 flex items-center justify-between bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/20">
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <div class="flex items-center space-x-2 space-x-reverse">
+                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span class="text-xs text-green-100 font-medium">النظام متصل</span>
+                    </div>
+                    <div class="w-px h-4 bg-white/30"></div>
+                    <div class="text-xs text-blue-100">
+                        آخر حفظ: <span id="lastSaveTime">الآن</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 space-x-reverse">
+                    <svg class="w-4 h-4 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                    </svg>
+                    <span class="text-xs text-yellow-100 font-medium">نظام متطور</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-white shadow-md sticky top-0 z-40">
+        <div class="container mx-auto px-4">
+            <div class="flex overflow-x-auto">
+                <button onclick="switchTab('data-entry')" id="tab-data-entry" class="tab-active px-6 py-4 font-semibold rounded-t-lg transition-all duration-300 whitespace-nowrap flex items-center space-x-2 space-x-reverse">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"></path>
+                    </svg>
+                    <span>إدخال البيانات</span>
+                </button>
+                <button onclick="switchTab('accounts')" id="tab-accounts" class="tab-inactive px-6 py-4 font-semibold rounded-t-lg transition-all duration-300 whitespace-nowrap flex items-center space-x-2 space-x-reverse">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zM14 6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h8zM6 8a2 2 0 000 4h8a2 2 0 000-4H6z"></path>
+                    </svg>
+                    <span>إدارة الحسابات</span>
+                </button>
+                <button onclick="switchTab('reports')" id="tab-reports" class="tab-inactive px-6 py-4 font-semibold rounded-t-lg transition-all duration-300 whitespace-nowrap flex items-center space-x-2 space-x-reverse">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+                    </svg>
+                    <span>التقارير المحفوظة</span>
+                </button>
+                <button onclick="switchTab('debtors')" id="tab-debtors" class="tab-inactive px-6 py-4 font-semibold rounded-t-lg transition-all duration-300 whitespace-nowrap flex items-center space-x-2 space-x-reverse">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
+                    </svg>
+                    <span>العملاء المديونين</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Data Entry Section -->
+        <div id="section-data-entry" class="section-content">
+            <div class="grid lg:grid-cols-2 gap-8">
+                <!-- Input Forms -->
+                <div class="space-y-6">
+                    <!-- Basic Info Card -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <span>معلومات أساسية</span>
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">اسم المندوب</label>
+                                <input type="text" id="representativeName" class="w-full px-4 py-3 input-focus" placeholder="أدخل اسم المندوب" onchange="saveDefaultRepresentative()">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">التاريخ</label>
+                                <input type="date" id="reportDate" class="w-full px-4 py-3 input-focus">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collections Card -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <span>التحصيلات</span>
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">نوع التحصيل</label>
+                                    <select id="collectionType" class="w-full px-4 py-3 input-focus" onchange="toggleCardSelection()">
+                                        <option value="نقدي" selected>نقدي</option>
+                                        <option value="سحب من بطاقة">سحب من بطاقة</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">اسم العميل</label>
+                                    <input type="text" id="customerName" class="w-full px-4 py-3 input-focus" placeholder="اسم العميل">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">المبلغ (ريال)</label>
+                                    <input type="number" id="collectionAmount" class="w-full px-4 py-3 input-focus" placeholder="0" step="1">
+                                </div>
+                            </div>
+                            <div id="cardSelectionDiv" class="hidden">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">اختيار البطاقة/الحساب</label>
+                                <select id="cardSelection" class="w-full px-4 py-3 input-focus">
+                                    <option value="">اختر البطاقة/الحساب</option>
+                                </select>
+                            </div>
+                            <button onclick="addCollection()" class="btn-primary text-white px-6 py-4 w-full flex items-center justify-center space-x-2 space-x-reverse">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span>إضافة تحصيل</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Deposits Card -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zM14 6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h8zM6 8a2 2 0 000 4h8a2 2 0 000-4H6z"></path>
+                                </svg>
+                            </div>
+                            <span>الإيداعات</span>
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">الحساب البنكي</label>
+                                    <select id="bankAccount" class="w-full px-4 py-3 input-focus">
+                                        <option value="">اختر الحساب</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">مبلغ الإيداع (ريال)</label>
+                                    <input type="number" id="depositAmount" class="w-full px-4 py-3 input-focus" placeholder="0" step="1">
+                                </div>
+                            </div>
+                            <button onclick="addDeposit()" class="btn-primary text-white px-6 py-4 w-full flex items-center justify-center space-x-2 space-x-reverse">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span>إضافة إيداع</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Expenses Card -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-8 h-8 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <span>المصروفات</span>
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">نوع المصروف</label>
+                                    <select id="expenseType" class="w-full px-4 py-3 input-focus">
+                                        <option value="">اختر النوع</option>
+                                        <option value="وقود">وقود</option>
+                                        <option value="صيانة">صيانة</option>
+                                        <option value="مواصلات">مواصلات</option>
+                                        <option value="أخرى">أخرى</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">المبلغ (ريال)</label>
+                                    <input type="number" id="expenseAmount" class="w-full px-4 py-3 input-focus" placeholder="0" step="1">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-gray-700 mb-2">التفاصيل</label>
+                                    <input type="text" id="expenseDetails" class="w-full px-4 py-3 input-focus" placeholder="تفاصيل المصروف">
+                                </div>
+                            </div>
+                            <button onclick="addExpense()" class="btn-primary text-white px-6 py-4 w-full flex items-center justify-center space-x-2 space-x-reverse">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span>إضافة مصروف</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Transfers Card -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-8 h-8 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z"></path>
+                                </svg>
+                            </div>
+                            <span>التحويلات</span>
+                        </h3>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="space-y-3">
+                                    <h4 class="font-semibold text-green-700 flex items-center space-x-2 space-x-reverse">
+                                        <div class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                            <svg class="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9.5 7.707 6.621a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0z" clip-rule="evenodd"></path>
+                                            </svg>
+                                        </div>
+                                        <span>استلام من مندوب</span>
+                                    </h4>
+                                    <input type="text" id="receiveFromRep" class="w-full px-4 py-3 input-focus" placeholder="اسم المندوب">
+                                    <input type="number" id="receiveAmount" class="w-full px-4 py-3 input-focus" placeholder="المبلغ المستلم" step="1">
+                                    <button onclick="addReceive()" class="btn-success text-white px-4 py-3 w-full flex items-center justify-center space-x-2 space-x-reverse">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9.5 7.707 6.621a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        <span>استلام</span>
+                                    </button>
+                                </div>
+                                <div class="space-y-3">
+                                    <h4 class="font-semibold text-orange-700 flex items-center space-x-2 space-x-reverse">
+                                        <div class="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center">
+                                            <svg class="w-3 h-3 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"></path>
+                                            </svg>
+                                        </div>
+                                        <span>تسليم لمندوب</span>
+                                    </h4>
+                                    <input type="text" id="deliverToRep" class="w-full px-4 py-3 input-focus" placeholder="اسم المندوب">
+                                    <input type="number" id="deliverAmount" class="w-full px-4 py-3 input-focus" placeholder="المبلغ المسلم" step="1">
+                                    <button onclick="addDeliver()" class="btn-warning text-white px-4 py-3 w-full flex items-center justify-center space-x-2 space-x-reverse">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        <span>تسليم</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                </div>
+
+                <!-- Summary and Actions -->
+                <div class="space-y-6">
+                    <!-- Summary Card -->
+                    <div class="summary-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-8 h-8 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+                                </svg>
+                            </div>
+                            <span>ملخص اليوم</span>
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="summary-item flex justify-between items-center p-3 sm:p-4 bg-gradient-to-r from-green-50 to-green-100">
+                                <span class="font-semibold text-green-800 text-sm sm:text-base">إجمالي التحصيلات:</span>
+                                <span class="text-lg sm:text-2xl font-bold text-green-600" id="totalCollections">0 ريال</span>
+                            </div>
+                            <div class="summary-item flex justify-between items-center p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-blue-100">
+                                <span class="font-semibold text-blue-800 text-sm sm:text-base">إجمالي الإيداعات:</span>
+                                <span class="text-lg sm:text-2xl font-bold text-blue-600" id="totalDeposits">0 ريال</span>
+                            </div>
+                            <div class="summary-item flex justify-between items-center p-3 sm:p-4 bg-gradient-to-r from-red-50 to-red-100">
+                                <span class="font-semibold text-red-800 text-sm sm:text-base">إجمالي المصروفات:</span>
+                                <span class="text-lg sm:text-2xl font-bold text-red-600" id="totalExpenses">0 ريال</span>
+                            </div>
+                            <div class="summary-item flex justify-between items-center p-3 sm:p-4 bg-gradient-to-r from-emerald-50 to-emerald-100">
+                                <span class="font-semibold text-emerald-800 text-sm sm:text-base">إجمالي المستلم:</span>
+                                <span class="text-lg sm:text-2xl font-bold text-emerald-600" id="totalReceived">0 ريال</span>
+                            </div>
+                            <div class="summary-item flex justify-between items-center p-3 sm:p-4 bg-gradient-to-r from-orange-50 to-orange-100">
+                                <span class="font-semibold text-orange-800 text-sm sm:text-base">إجمالي المسلم:</span>
+                                <span class="text-lg sm:text-2xl font-bold text-orange-600" id="totalDelivered">0 ريال</span>
+                            </div>
+                            <div class="summary-item flex justify-between items-center p-4 bg-gradient-to-r from-purple-100 to-purple-200 border-2 border-purple-300 pulse-animation">
+                                <span class="font-bold text-purple-800 text-sm sm:text-base">💼 المبلغ المتبقي معك:</span>
+                                <span class="text-xl sm:text-3xl font-black text-purple-700" id="finalBalance">0 ريال</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collections List -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-6 h-6 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <span>قائمة التحصيلات</span>
+                        </h3>
+                        <div id="collectionsList" class="space-y-2 max-h-60 overflow-y-auto mobile-scroll">
+                            <p class="text-gray-500 text-center py-4 text-sm sm:text-base">لا توجد تحصيلات مسجلة</p>
+                        </div>
+                    </div>
+
+                    <!-- Deposits List -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-6 h-6 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4z"></path>
+                                </svg>
+                            </div>
+                            <span>قائمة الإيداعات</span>
+                        </h3>
+                        <div id="depositsList" class="space-y-2 max-h-60 overflow-y-auto mobile-scroll">
+                            <p class="text-gray-500 text-center py-4 text-sm sm:text-base">لا توجد إيداعات مسجلة</p>
+                        </div>
+                    </div>
+
+                    <!-- Expenses List -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-6 h-6 bg-gradient-to-r from-red-500 to-red-600 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <span>قائمة المصروفات</span>
+                        </h3>
+                        <div id="expensesList" class="space-y-2 max-h-60 overflow-y-auto mobile-scroll">
+                            <p class="text-gray-500 text-center py-4 text-sm sm:text-base">لا توجد مصروفات مسجلة</p>
+                        </div>
+                    </div>
+
+                    <!-- Transfers List -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-3 sm:mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-6 h-6 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8z"></path>
+                                </svg>
+                            </div>
+                            <span>قائمة التحويلات</span>
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="font-semibold text-green-700 mb-2 flex items-center space-x-2 space-x-reverse">
+                                    <div class="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center">
+                                        <svg class="w-2 h-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9.5 7.707 6.621a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0z" clip-rule="evenodd"></path>
+                                        </svg>
+                                    </div>
+                                    <span>المبالغ المستلمة</span>
+                                </h4>
+                                <div id="receivesList" class="space-y-2 max-h-40 overflow-y-auto mobile-scroll">
+                                    <p class="text-gray-500 text-center py-2 text-sm">لا توجد مبالغ مستلمة</p>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-orange-700 mb-2 flex items-center space-x-2 space-x-reverse">
+                                    <div class="w-4 h-4 bg-orange-100 rounded-full flex items-center justify-center">
+                                        <svg class="w-2 h-2 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"></path>
+                                        </svg>
+                                    </div>
+                                    <span>المبالغ المسلمة</span>
+                                </h4>
+                                <div id="deliversList" class="space-y-2 max-h-40 overflow-y-auto mobile-scroll">
+                                    <p class="text-gray-500 text-center py-2 text-sm">لا توجد مبالغ مسلمة</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="mobile-card p-4 sm:p-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                            <div class="w-6 h-6 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full flex items-center justify-center">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <span>الإجراءات</span>
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <button onclick="saveReport()" class="btn-primary text-white px-6 py-4 flex items-center justify-center space-x-2 space-x-reverse">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z"></path>
+                                </svg>
+                                <span>حفظ التقرير</span>
+                            </button>
+                            <button onclick="generatePDF()" class="btn-danger text-white px-6 py-4 flex items-center justify-center space-x-2 space-x-reverse">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span>تصدير PDF</span>
+                            </button>
+                            <button onclick="showShareOptions()" class="btn-success text-white px-6 py-4 flex items-center justify-center space-x-2 space-x-reverse">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path>
+                                </svg>
+                                <span>مشاركة تقرير</span>
+                            </button>
+                            <button onclick="clearAll()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-4 transition-all duration-300 flex items-center justify-center space-x-2 space-x-reverse rounded-16">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"></path>
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span>مسح الكل</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accounts Management Section -->
+        <div id="section-accounts" class="section-content hidden">
+            <div class="grid lg:grid-cols-2 gap-8">
+                <!-- Add Account Form -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        ➕ إضافة حساب جديد
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">اسم البنك</label>
+                            <input type="text" id="bankName" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus" placeholder="مثال: البنك الأهلي">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">رقم الحساب</label>
+                            <input type="text" id="accountNumber" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus" placeholder="رقم الحساب">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">رقم البطاقة</label>
+                            <input type="text" id="cardNumber" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus" placeholder="رقم البطاقة">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">اسم صاحب البطاقة</label>
+                            <input type="text" id="cardHolderName" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus" placeholder="اسم صاحب البطاقة">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">السقف المالي (ريال)</label>
+                            <input type="number" id="accountLimit" class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus" placeholder="0" step="1">
+                        </div>
+                        <button onclick="addAccount()" class="btn-primary text-white px-6 py-3 rounded-lg font-semibold w-full">
+                            إضافة الحساب
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Accounts List -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        📋 الحسابات المسجلة
+                    </h3>
+                    <div id="accountsList" class="space-y-4 max-h-96 overflow-y-auto">
+                        <p class="text-gray-500 text-center py-8">لا توجد حسابات مسجلة</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Section -->
+        <div id="section-reports" class="section-content hidden">
+            <div class="bg-white rounded-xl card-shadow p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        📊 التقارير المحفوظة
+                    </h3>
+                    <div class="flex space-x-4 space-x-reverse">
+                        <input type="text" id="searchReports" class="px-4 py-2 border border-gray-300 rounded-lg input-focus" placeholder="البحث في التقارير...">
+                        <button onclick="exportAllReports()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
+                            📤 تصدير الكل
+                        </button>
+                    </div>
+                </div>
+                <div id="reportsList" class="space-y-4 max-h-96 overflow-y-auto">
+                    <p class="text-gray-500 text-center py-8">لا توجد تقارير محفوظة</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Debtors Section -->
+        <div id="section-debtors" class="section-content hidden">
+            <div class="space-y-6">
+                <!-- Sync Controls -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 space-y-2 sm:space-y-0">
+                        <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                            👥 العملاء المديونين
+                        </h3>
+                        <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 sm:space-x-reverse w-full sm:w-auto">
+                            <button onclick="syncGoogleSheets()" id="syncButton" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors w-full sm:w-auto">
+                                🔄 مزامنة البيانات
+                            </button>
+                            <button onclick="toggleDebugInfo()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors w-full sm:w-auto">
+                                🔍 تشخيص المزامنة
+                            </button>
+                            <div class="text-sm text-gray-600 text-center sm:text-right">
+                                آخر تحديث: <span id="lastSync">لم يتم التحديث</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Debug Info Panel -->
+                    <div id="debugInfo" class="hidden mt-4 p-4 bg-gray-100 rounded-lg">
+                        <h4 class="font-semibold text-gray-800 mb-2">معلومات التشخيص:</h4>
+                        <div id="debugContent" class="text-sm text-gray-700 max-h-40 overflow-y-auto font-mono bg-white p-2 rounded border"></div>
+                    </div>
+                </div>
+
+                <!-- Khamis Mushait Debtors -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-lg font-bold text-blue-800 flex items-center space-x-2 space-x-reverse">
+                            🏢 <span>عملاء خميس مشيط</span>
+                        </h4>
+                        <div class="text-sm text-gray-600">
+                            العدد: <span id="khamisCount">0</span> | 
+                            الإجمالي: <span id="khamisTotal">0.00 ريال</span>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse min-w-full">
+                            <thead>
+                                <tr class="bg-blue-50">
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">اسم العميل</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">المبلغ المستحق</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">الحالة</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="khamisDebtorsBody">
+                                <tr>
+                                    <td colspan="4" class="border border-gray-300 px-2 sm:px-4 py-8 text-center text-gray-500 text-sm sm:text-base">
+                                        لا توجد بيانات عملاء خميس مشيط
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Dhahran Al Janub Debtors -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-lg font-bold text-green-800 flex items-center space-x-2 space-x-reverse">
+                            🏘️ <span>عملاء ظهران الجنوب</span>
+                        </h4>
+                        <div class="text-sm text-gray-600">
+                            العدد: <span id="dhahranCount">0</span> | 
+                            الإجمالي: <span id="dhahranTotal">0.00 ريال</span>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse min-w-full">
+                            <thead>
+                                <tr class="bg-green-50">
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">اسم العميل</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">المبلغ المستحق</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">الحالة</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dhahranDebtorsBody">
+                                <tr>
+                                    <td colspan="4" class="border border-gray-300 px-2 sm:px-4 py-8 text-center text-gray-500 text-sm sm:text-base">
+                                        لا توجد بيانات عملاء ظهران الجنوب
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Other Regions Debtors -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-lg font-bold text-purple-800 flex items-center space-x-2 space-x-reverse">
+                            🌍 <span>عملاء باقي المناطق</span>
+                        </h4>
+                        <div class="text-sm text-gray-600">
+                            العدد: <span id="otherCount">0</span> | 
+                            الإجمالي: <span id="otherTotal">0.00 ريال</span>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse min-w-full">
+                            <thead>
+                                <tr class="bg-purple-50">
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">اسم العميل</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">المبلغ المستحق</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">المنطقة</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">الحالة</th>
+                                    <th class="border border-gray-300 px-2 sm:px-4 py-3 text-right font-semibold text-sm sm:text-base">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="otherDebtorsBody">
+                                <tr>
+                                    <td colspan="5" class="border border-gray-300 px-2 sm:px-4 py-8 text-center text-gray-500 text-sm sm:text-base">
+                                        لا توجد بيانات عملاء باقي المناطق
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Notification Container -->
+    <div id="notifications" class="fixed top-4 left-4 z-50 space-y-2"></div>
+
+    <!-- Floating Action Button -->
+    <button onclick="showQuickActions()" class="floating-action btn-primary flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path>
+        </svg>
+    </button>
+
+    <script>
+        // Global Variables
+        let currentTab = 'data-entry';
+        let collections = [];
+        let deposits = [];
+        let expenses = [];
+        let receives = [];
+        let delivers = [];
+        let accounts = [];
+        let reports = [];
+        let debtors = [];
+
+        let currentSheetId = '1vmRGsu2THMQHHT7rDIbJJ44eJ5rCLIpkq9NYL5iUT4E';
+        let autoSyncInterval;
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+            loadData();
+            updateSummary();
+            document.getElementById('reportDate').value = new Date().toISOString().split('T')[0];
+            
+            // Load default representative name
+            loadDefaultRepresentative();
+            
+            // Start auto-sync every 2 minutes
+            startAutoSync();
+            
+            // Initialize keyboard shortcuts
+            initializeKeyboardShortcuts();
+            
+            // Initialize progressive web app features
+            initializePWAFeatures();
+        });
+        
+        // Keyboard Shortcuts
+        function initializeKeyboardShortcuts() {
+            document.addEventListener('keydown', function(e) {
+                // Ctrl/Cmd + S to save report
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveReport();
+                    showNotification('تم حفظ التقرير بالاختصار!', 'success');
+                }
+                
+                // Ctrl/Cmd + P to generate PDF
+                if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                    e.preventDefault();
+                    generatePDF();
+                }
+                
+                // Ctrl/Cmd + W to share WhatsApp
+                if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+                    e.preventDefault();
+                    shareWhatsApp();
+                }
+                
+                // Alt + 1-4 to switch tabs
+                if (e.altKey && e.key >= '1' && e.key <= '4') {
+                    e.preventDefault();
+                    const tabs = ['data-entry', 'accounts', 'reports', 'debtors'];
+                    switchTab(tabs[parseInt(e.key) - 1]);
+                }
+                
+                // Escape to close dialogs
+                if (e.key === 'Escape') {
+                    closeInstantDialog();
+                    closeQuickActions();
+                }
+            });
+        }
+        
+        // Progressive Web App Features
+        function initializePWAFeatures() {
+            // Check if app is running in standalone mode
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                document.body.classList.add('pwa-mode');
+                showNotification('مرحباً بك في التطبيق!', 'success', 3000);
+            }
+            
+            // Add install prompt
+            let deferredPrompt;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                showInstallButton();
+            });
+        }
+        
+        function showInstallButton() {
+            const installButton = document.createElement('button');
+            installButton.className = 'fixed bottom-20 left-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold z-50';
+            installButton.innerHTML = '📱 تثبيت التطبيق';
+            installButton.onclick = installApp;
+            document.body.appendChild(installButton);
+        }
+        
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        showNotification('تم تثبيت التطبيق بنجاح!', 'success');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+        }
+
+        // Auto-sync functionality
+        function startAutoSync() {
+            // Initial sync
+            setTimeout(() => {
+                syncGoogleSheets(true); // Silent sync
+            }, 5000); // Wait 5 seconds after page load
+            
+            // Set up interval for every 2 minutes
+            autoSyncInterval = setInterval(() => {
+                syncGoogleSheets(true); // Silent sync
+            }, 120000); // 2 minutes = 120,000 milliseconds
+        }
+
+        function stopAutoSync() {
+            if (autoSyncInterval) {
+                clearInterval(autoSyncInterval);
+                autoSyncInterval = null;
+            }
+        }
+
+        // Default Representative Functions
+        function saveDefaultRepresentative() {
+            const representative = document.getElementById('representativeName').value;
+            if (representative.trim()) {
+                localStorage.setItem('defaultRepresentative', representative.trim());
+            }
+        }
+        
+        function loadDefaultRepresentative() {
+            const defaultRep = localStorage.getItem('defaultRepresentative');
+            if (defaultRep) {
+                document.getElementById('representativeName').value = defaultRep;
+            }
+        }
+        
+        // Card Selection Functions
+        function toggleCardSelection() {
+            const collectionType = document.getElementById('collectionType').value;
+            const cardSelectionDiv = document.getElementById('cardSelectionDiv');
+            
+            if (collectionType === 'سحب من بطاقة') {
+                cardSelectionDiv.classList.remove('hidden');
+                updateCardSelection();
+            } else {
+                cardSelectionDiv.classList.add('hidden');
+            }
+        }
+        
+        function updateCardSelection() {
+            const cardSelection = document.getElementById('cardSelection');
+            cardSelection.innerHTML = '<option value="">اختر البطاقة/الحساب</option>';
+            
+            accounts.forEach(account => {
+                cardSelection.innerHTML += `<option value="${account.id}">${account.name} - ${account.cardNumber || account.number}</option>`;
+            });
+        }
+
+        // Date and Time Functions
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                weekday: 'long'
+            };
+            const timeOptions = { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: true
+            };
+            
+            const dateText = now.toLocaleDateString('ar-EG', dateOptions);
+            const timeText = now.toLocaleTimeString('ar-EG', timeOptions);
+            
+            // Update desktop version
+            const dateElement = document.getElementById('currentDate');
+            const timeElement = document.getElementById('currentTime');
+            if (dateElement) dateElement.textContent = dateText;
+            if (timeElement) timeElement.textContent = timeText;
+            
+            // Update mobile version
+            const dateMobileElement = document.getElementById('currentDateMobile');
+            const timeMobileElement = document.getElementById('currentTimeMobile');
+            if (dateMobileElement) dateMobileElement.textContent = dateText;
+            if (timeMobileElement) timeMobileElement.textContent = timeText;
+        }
+
+        // Tab Management
+        function switchTab(tabName) {
+            // Hide all sections
+            document.querySelectorAll('.section-content').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Show selected section
+            document.getElementById(`section-${tabName}`).classList.remove('hidden');
+            
+            // Update tab styles
+            document.querySelectorAll('[id^="tab-"]').forEach(tab => {
+                tab.className = 'tab-inactive px-6 py-4 font-semibold rounded-t-lg transition-all duration-300 whitespace-nowrap flex items-center space-x-2 space-x-reverse';
+            });
+            
+            document.getElementById(`tab-${tabName}`).className = 'tab-active px-6 py-4 font-semibold rounded-t-lg transition-all duration-300 whitespace-nowrap flex items-center space-x-2 space-x-reverse';
+            
+            currentTab = tabName;
+            
+            // Load specific data for each tab
+            if (tabName === 'accounts') {
+                displayAccounts();
+            } else if (tabName === 'reports') {
+                displayReports();
+            } else if (tabName === 'debtors') {
+                displayDebtors();
+            }
+        }
+
+        // Collections Management
+        function addCollection() {
+            const type = document.getElementById('collectionType').value;
+            const customer = document.getElementById('customerName').value;
+            const amount = parseFloat(document.getElementById('collectionAmount').value);
+            let cardAccount = null;
+            
+            if (!type || !customer || !amount || amount <= 0) {
+                showNotification('يرجى ملء جميع بيانات التحصيل', 'error');
+                return;
+            }
+            
+            // Check if card is selected for card withdrawal
+            if (type === 'سحب من بطاقة') {
+                const cardId = document.getElementById('cardSelection').value;
+                if (!cardId) {
+                    showNotification('يرجى اختيار البطاقة/الحساب', 'error');
+                    return;
+                }
+                cardAccount = accounts.find(acc => acc.id == cardId);
+            }
+            
+            const collection = {
+                id: Date.now(),
+                type,
+                customer,
+                amount,
+                cardAccount: cardAccount ? {
+                    id: cardAccount.id,
+                    name: cardAccount.name,
+                    cardNumber: cardAccount.cardNumber,
+                    number: cardAccount.number
+                } : null,
+                timestamp: new Date().toISOString()
+            };
+            
+            collections.push(collection);
+            updateCollectionsList();
+            updateSummary();
+            saveData();
+            
+            // Clear form
+            document.getElementById('collectionType').value = 'نقدي';
+            document.getElementById('customerName').value = '';
+            document.getElementById('collectionAmount').value = '';
+            document.getElementById('cardSelection').value = '';
+            document.getElementById('cardSelectionDiv').classList.add('hidden');
+            
+            showNotification('تم إضافة التحصيل بنجاح', 'success');
+            
+            // Generate instant text report
+            generateInstantTextReport('collection', { type, customer, amount, cardAccount });
+        }
+
+        function updateCollectionsList() {
+            const container = document.getElementById('collectionsList');
+            
+            if (collections.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">لا توجد تحصيلات مسجلة</p>';
+                return;
+            }
+            
+            container.innerHTML = collections.map(collection => `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <span class="font-semibold">${collection.customer}</span>
+                        <span class="text-sm text-gray-600 mr-2">(${collection.type})</span>
+                        ${collection.cardAccount ? `<div class="text-xs text-blue-600">البطاقة: ${collection.cardAccount.cardNumber || collection.cardAccount.number}</div>` : ''}
+                        <div class="text-xs text-gray-500">${new Date(collection.timestamp).toLocaleString('ar-EG')}</div>
+                    </div>
+                    <div class="flex items-center space-x-2 space-x-reverse">
+                        <span class="font-bold text-green-600">${Math.round(collection.amount)} ريال</span>
+                        <button onclick="shareCollectionWhatsApp(${collection.id})" class="text-green-500 hover:text-green-700" title="مشاركة">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path>
+                            </svg>
+                        </button>
+                        <button onclick="editCollection(${collection.id})" class="text-blue-500 hover:text-blue-700" title="تعديل">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
+                            </svg>
+                        </button>
+                        <button onclick="removeCollection(${collection.id})" class="text-red-500 hover:text-red-700" title="حذف">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeCollection(id) {
+            if (confirm('هل أنت متأكد من حذف هذا التحصيل؟')) {
+                collections = collections.filter(c => c.id !== id);
+                updateCollectionsList();
+                updateSummary();
+                saveData();
+                showNotification('تم حذف التحصيل', 'info');
+            }
+        }
+
+        function editCollection(id) {
+            const collection = collections.find(c => c.id === id);
+            if (!collection) return;
+            
+            const newCustomer = prompt('اسم العميل:', collection.customer);
+            const newAmount = prompt('المبلغ:', collection.amount);
+            const newType = prompt('نوع التحصيل (نقدي/تحويل/شيك):', collection.type);
+            
+            if (newCustomer && newAmount && newType && parseFloat(newAmount) > 0) {
+                collection.customer = newCustomer;
+                collection.amount = parseFloat(newAmount);
+                collection.type = newType;
+                collection.timestamp = new Date().toISOString();
+                
+                updateCollectionsList();
+                updateSummary();
+                saveData();
+                showNotification('تم تعديل التحصيل بنجاح', 'success');
+            }
+        }
+
+        function shareCollectionWhatsApp(id) {
+            const collection = collections.find(c => c.id === id);
+            if (!collection) return;
+            
+            const message = `💰 *تحصيل جديد*\n• العميل: ${collection.customer}\n• النوع: ${collection.type}\n• المبلغ: ${collection.amount.toFixed(2)} ريال\n• التاريخ: ${new Date(collection.timestamp).toLocaleString('ar-EG')}`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        // Deposits Management
+        function addDeposit() {
+            const account = document.getElementById('bankAccount').value;
+            const amount = parseFloat(document.getElementById('depositAmount').value);
+            
+            if (!account || !amount || amount <= 0) {
+                showNotification('يرجى اختيار الحساب وإدخال المبلغ', 'error');
+                return;
+            }
+            
+            // Check account limit
+            const accountData = accounts.find(acc => acc.id == account);
+            if (accountData && amount > accountData.limit) {
+                showNotification(`تحذير: المبلغ يتجاوز السقف المحدد للحساب (${accountData.limit} ريال)`, 'warning');
+            }
+            
+            const deposit = {
+                id: Date.now(),
+                account,
+                accountName: accountData ? accountData.name : account,
+                amount,
+                timestamp: new Date().toISOString()
+            };
+            
+            deposits.push(deposit);
+            updateDepositsList();
+            updateSummary();
+            saveData();
+            
+            document.getElementById('depositAmount').value = '';
+            showNotification('تم إضافة الإيداع بنجاح', 'success');
+            
+            // Generate instant text report
+            generateInstantTextReport('deposit', { 
+                account: accountData ? accountData.name : account, 
+                amount,
+                accountId: account
+            });
+        }
+
+        function updateDepositsList() {
+            const container = document.getElementById('depositsList');
+            
+            if (deposits.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">لا توجد إيداعات مسجلة</p>';
+                return;
+            }
+            
+            container.innerHTML = deposits.map(deposit => `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <span class="font-semibold">${deposit.accountName}</span>
+                        <div class="text-xs text-gray-500">${new Date(deposit.timestamp).toLocaleString('ar-EG')}</div>
+                    </div>
+                    <div class="flex items-center space-x-2 space-x-reverse">
+                        <span class="font-bold text-blue-600">${Math.round(deposit.amount)} ريال</span>
+                        <button onclick="shareDepositWhatsApp(${deposit.id})" class="text-green-500 hover:text-green-700" title="مشاركة">
+                            📱
+                        </button>
+                        <button onclick="editDeposit(${deposit.id})" class="text-blue-500 hover:text-blue-700" title="تعديل">
+                            ✏️
+                        </button>
+                        <button onclick="removeDeposit(${deposit.id})" class="text-red-500 hover:text-red-700" title="حذف">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeDeposit(id) {
+            if (confirm('هل أنت متأكد من حذف هذا الإيداع؟')) {
+                deposits = deposits.filter(d => d.id !== id);
+                updateDepositsList();
+                updateSummary();
+                saveData();
+                showNotification('تم حذف الإيداع', 'info');
+            }
+        }
+
+        function editDeposit(id) {
+            const deposit = deposits.find(d => d.id === id);
+            if (!deposit) return;
+            
+            const newAmount = prompt('المبلغ:', deposit.amount);
+            
+            if (newAmount && parseFloat(newAmount) > 0) {
+                deposit.amount = parseFloat(newAmount);
+                deposit.timestamp = new Date().toISOString();
+                
+                updateDepositsList();
+                updateSummary();
+                saveData();
+                showNotification('تم تعديل الإيداع بنجاح', 'success');
+            }
+        }
+
+        function shareDepositWhatsApp(id) {
+            const deposit = deposits.find(d => d.id === id);
+            if (!deposit) return;
+            
+            const message = `🏦 *إيداع جديد*\n• الحساب: ${deposit.accountName}\n• المبلغ: ${deposit.amount.toFixed(2)} ريال\n• التاريخ: ${new Date(deposit.timestamp).toLocaleString('ar-EG')}`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        // Transfers Management
+        function addReceive() {
+            const fromRep = document.getElementById('receiveFromRep').value;
+            const amount = parseFloat(document.getElementById('receiveAmount').value);
+            
+            if (!fromRep || !amount || amount <= 0) {
+                showNotification('يرجى إدخال اسم المندوب والمبلغ', 'error');
+                return;
+            }
+            
+            const receive = {
+                id: Date.now(),
+                fromRep,
+                amount,
+                timestamp: new Date().toISOString()
+            };
+            
+            receives.push(receive);
+            updateReceivesList();
+            updateSummary();
+            saveData();
+            
+            document.getElementById('receiveFromRep').value = '';
+            document.getElementById('receiveAmount').value = '';
+            
+            showNotification('تم إضافة المبلغ المستلم بنجاح', 'success');
+            
+            generateInstantTextReport('receive', { fromRep, amount });
+        }
+
+        function addDeliver() {
+            const toRep = document.getElementById('deliverToRep').value;
+            const amount = parseFloat(document.getElementById('deliverAmount').value);
+            
+            if (!toRep || !amount || amount <= 0) {
+                showNotification('يرجى إدخال اسم المندوب والمبلغ', 'error');
+                return;
+            }
+            
+            const deliver = {
+                id: Date.now(),
+                toRep,
+                amount,
+                timestamp: new Date().toISOString()
+            };
+            
+            delivers.push(deliver);
+            updateDeliversList();
+            updateSummary();
+            saveData();
+            
+            document.getElementById('deliverToRep').value = '';
+            document.getElementById('deliverAmount').value = '';
+            
+            showNotification('تم إضافة المبلغ المسلم بنجاح', 'success');
+            
+            generateInstantTextReport('deliver', { toRep, amount });
+        }
+
+        function updateReceivesList() {
+            const container = document.getElementById('receivesList');
+            
+            if (receives.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-2 text-sm">لا توجد مبالغ مستلمة</p>';
+                return;
+            }
+            
+            container.innerHTML = receives.map(receive => `
+                <div class="flex justify-between items-center p-2 bg-green-50 rounded text-sm">
+                    <div>
+                        <span class="font-semibold">${receive.fromRep}</span>
+                        <div class="text-xs text-gray-500">${new Date(receive.timestamp).toLocaleString('ar-EG')}</div>
+                    </div>
+                    <div class="flex items-center space-x-2 space-x-reverse">
+                        <span class="font-bold text-green-600">${receive.amount.toFixed(2)} ريال</span>
+                        <button onclick="removeReceive(${receive.id})" class="text-red-500 hover:text-red-700 text-xs" title="حذف">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateDeliversList() {
+            const container = document.getElementById('deliversList');
+            
+            if (delivers.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-2 text-sm">لا توجد مبالغ مسلمة</p>';
+                return;
+            }
+            
+            container.innerHTML = delivers.map(deliver => `
+                <div class="flex justify-between items-center p-2 bg-orange-50 rounded text-sm">
+                    <div>
+                        <span class="font-semibold">${deliver.toRep}</span>
+                        <div class="text-xs text-gray-500">${new Date(deliver.timestamp).toLocaleString('ar-EG')}</div>
+                    </div>
+                    <div class="flex items-center space-x-2 space-x-reverse">
+                        <span class="font-bold text-orange-600">${deliver.amount.toFixed(2)} ريال</span>
+                        <button onclick="removeDeliver(${deliver.id})" class="text-red-500 hover:text-red-700 text-xs" title="حذف">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeReceive(id) {
+            if (confirm('هل أنت متأكد من حذف هذا المبلغ المستلم؟')) {
+                receives = receives.filter(r => r.id !== id);
+                updateReceivesList();
+                updateSummary();
+                saveData();
+                showNotification('تم حذف المبلغ المستلم', 'info');
+            }
+        }
+
+        function removeDeliver(id) {
+            if (confirm('هل أنت متأكد من حذف هذا المبلغ المسلم؟')) {
+                delivers = delivers.filter(d => d.id !== id);
+                updateDeliversList();
+                updateSummary();
+                saveData();
+                showNotification('تم حذف المبلغ المسلم', 'info');
+            }
+        }
+
+        // Expenses Management
+        function addExpense() {
+            const type = document.getElementById('expenseType').value;
+            const amount = parseFloat(document.getElementById('expenseAmount').value);
+            const details = document.getElementById('expenseDetails').value;
+            
+            if (!type || !amount || amount <= 0) {
+                showNotification('يرجى ملء بيانات المصروف', 'error');
+                return;
+            }
+            
+            const expense = {
+                id: Date.now(),
+                type,
+                amount,
+                details,
+                timestamp: new Date().toISOString()
+            };
+            
+            expenses.push(expense);
+            updateExpensesList();
+            updateSummary();
+            saveData();
+            
+            document.getElementById('expenseType').value = '';
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseDetails').value = '';
+            
+            showNotification('تم إضافة المصروف بنجاح', 'success');
+            
+            // Generate instant text report
+            generateInstantTextReport('expense', { type, amount, details });
+        }
+
+        function updateExpensesList() {
+            const container = document.getElementById('expensesList');
+            
+            if (expenses.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">لا توجد مصروفات مسجلة</p>';
+                return;
+            }
+            
+            container.innerHTML = expenses.map(expense => `
+                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <span class="font-semibold">${expense.type}</span>
+                        ${expense.details ? `<div class="text-sm text-gray-600">${expense.details}</div>` : ''}
+                        <div class="text-xs text-gray-500">${new Date(expense.timestamp).toLocaleString('ar-EG')}</div>
+                    </div>
+                    <div class="flex items-center space-x-2 space-x-reverse">
+                        <span class="font-bold text-red-600">${expense.amount.toFixed(2)} ريال</span>
+                        <button onclick="shareExpenseWhatsApp(${expense.id})" class="text-green-500 hover:text-green-700" title="مشاركة">
+                            📱
+                        </button>
+                        <button onclick="editExpense(${expense.id})" class="text-blue-500 hover:text-blue-700" title="تعديل">
+                            ✏️
+                        </button>
+                        <button onclick="removeExpense(${expense.id})" class="text-red-500 hover:text-red-700" title="حذف">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeExpense(id) {
+            if (confirm('هل أنت متأكد من حذف هذا المصروف؟')) {
+                expenses = expenses.filter(e => e.id !== id);
+                updateExpensesList();
+                updateSummary();
+                saveData();
+                showNotification('تم حذف المصروف', 'info');
+            }
+        }
+
+        function editExpense(id) {
+            const expense = expenses.find(e => e.id === id);
+            if (!expense) return;
+            
+            const newType = prompt('نوع المصروف:', expense.type);
+            const newAmount = prompt('المبلغ:', expense.amount);
+            const newDetails = prompt('التفاصيل:', expense.details || '');
+            
+            if (newType && newAmount && parseFloat(newAmount) > 0) {
+                expense.type = newType;
+                expense.amount = parseFloat(newAmount);
+                expense.details = newDetails;
+                expense.timestamp = new Date().toISOString();
+                
+                updateExpensesList();
+                updateSummary();
+                saveData();
+                showNotification('تم تعديل المصروف بنجاح', 'success');
+            }
+        }
+
+        function shareExpenseWhatsApp(id) {
+            const expense = expenses.find(e => e.id === id);
+            if (!expense) return;
+            
+            let message = `💸 *مصروف جديد*\n• النوع: ${expense.type}\n• المبلغ: ${expense.amount.toFixed(2)} ريال`;
+            if (expense.details) message += `\n• التفاصيل: ${expense.details}`;
+            message += `\n• التاريخ: ${new Date(expense.timestamp).toLocaleString('ar-EG')}`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        // Summary Updates
+        function updateSummary() {
+            const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+            const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+            const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+            const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+            const finalBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+            
+            document.getElementById('totalCollections').textContent = `${Math.round(totalCollections)} ريال`;
+            document.getElementById('totalDeposits').textContent = `${Math.round(totalDeposits)} ريال`;
+            document.getElementById('totalExpenses').textContent = `${Math.round(totalExpenses)} ريال`;
+            document.getElementById('totalReceived').textContent = `${Math.round(totalReceived)} ريال`;
+            document.getElementById('totalDelivered').textContent = `${Math.round(totalDelivered)} ريال`;
+            document.getElementById('finalBalance').textContent = `${Math.round(finalBalance)} ريال`;
+            
+            // Update balance color
+            const balanceElement = document.getElementById('finalBalance');
+            if (finalBalance > 0) {
+                balanceElement.className = 'text-xl sm:text-3xl font-black text-green-700';
+            } else if (finalBalance < 0) {
+                balanceElement.className = 'text-xl sm:text-3xl font-black text-red-700';
+            } else {
+                balanceElement.className = 'text-xl sm:text-3xl font-black text-gray-700';
+            }
+        }
+
+        // Account Management
+        function addAccount() {
+            const name = document.getElementById('bankName').value;
+            const number = document.getElementById('accountNumber').value;
+            const cardNumber = document.getElementById('cardNumber').value;
+            const cardHolderName = document.getElementById('cardHolderName').value;
+            const limit = parseInt(document.getElementById('accountLimit').value);
+            
+            if (!name || !number || !cardNumber || !cardHolderName || !limit || limit <= 0) {
+                showNotification('يرجى ملء جميع بيانات الحساب والبطاقة', 'error');
+                return;
+            }
+            
+            const account = {
+                id: Date.now(),
+                name,
+                number,
+                cardNumber,
+                cardHolderName,
+                limit,
+                totalDeposits: 0,
+                createdAt: new Date().toISOString()
+            };
+            
+            accounts.push(account);
+            updateAccountsDropdown();
+            displayAccounts();
+            saveData();
+            
+            // Clear form
+            document.getElementById('bankName').value = '';
+            document.getElementById('accountNumber').value = '';
+            document.getElementById('cardNumber').value = '';
+            document.getElementById('cardHolderName').value = '';
+            document.getElementById('accountLimit').value = '';
+            
+            showNotification('تم إضافة الحساب بنجاح', 'success');
+        }
+
+        function updateAccountsDropdown() {
+            const dropdown = document.getElementById('bankAccount');
+            dropdown.innerHTML = '<option value="">اختر الحساب</option>';
+            
+            accounts.forEach(account => {
+                dropdown.innerHTML += `<option value="${account.id}">${account.name} - ${account.number}</option>`;
+            });
+            
+            // Update card selection dropdown as well
+            updateCardSelection();
+        }
+
+        function displayAccounts() {
+            const container = document.getElementById('accountsList');
+            
+            if (accounts.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-8">لا توجد حسابات مسجلة</p>';
+                return;
+            }
+            
+            container.innerHTML = accounts.map(account => {
+                const accountDeposits = deposits.filter(d => d.account == account.id);
+                const totalDeposits = accountDeposits.reduce((sum, d) => sum + d.amount, 0);
+                const percentage = account.limit > 0 ? (totalDeposits / account.limit) * 100 : 0;
+                
+                return `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-bold text-lg">${account.name}</h4>
+                                <p class="text-gray-600">${account.number}</p>
+                                <p class="text-sm text-gray-500">البطاقة: ${account.cardNumber || 'غير محدد'}</p>
+                                <p class="text-sm text-gray-500">صاحب البطاقة: ${account.cardHolderName || 'غير محدد'}</p>
+                            </div>
+                            <div class="flex space-x-2 space-x-reverse">
+                                <button onclick="shareAccountReport(${account.id}, 'detailed')" class="text-blue-500 hover:text-blue-700" title="تقرير تفصيلي">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+                                    </svg>
+                                </button>
+                                <button onclick="shareAccountReport(${account.id}, 'summary')" class="text-green-500 hover:text-green-700" title="تقرير إجمالي">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </button>
+                                <button onclick="editAccount(${account.id})" class="text-yellow-500 hover:text-yellow-700" title="تعديل">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
+                                    </svg>
+                                </button>
+                                <button onclick="removeAccount(${account.id})" class="text-red-500 hover:text-red-700" title="حذف">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span>السقف المالي:</span>
+                                <span class="font-semibold">${account.limit} ريال</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>إجمالي الإيداعات:</span>
+                                <span class="font-semibold text-blue-600">${Math.round(totalDeposits)} ريال</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full" style="width: ${Math.min(percentage, 100)}%"></div>
+                            </div>
+                            <div class="text-sm text-gray-600 text-center">
+                                ${Math.round(percentage)}% من السقف المحدد
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function editAccount(id) {
+            const account = accounts.find(a => a.id === id);
+            if (!account) return;
+            
+            const newName = prompt('اسم البنك:', account.name);
+            const newNumber = prompt('رقم الحساب:', account.number);
+            const newCardNumber = prompt('رقم البطاقة:', account.cardNumber || '');
+            const newCardHolderName = prompt('اسم صاحب البطاقة:', account.cardHolderName || '');
+            const newLimit = prompt('السقف المالي:', account.limit);
+            
+            if (newName && newNumber && newLimit && parseFloat(newLimit) > 0) {
+                account.name = newName;
+                account.number = newNumber;
+                account.cardNumber = newCardNumber;
+                account.cardHolderName = newCardHolderName;
+                account.limit = parseFloat(newLimit);
+                
+                updateAccountsDropdown();
+                updateCardSelection();
+                displayAccounts();
+                saveData();
+                showNotification('تم تعديل الحساب بنجاح', 'success');
+            }
+        }
+
+        function removeAccount(id) {
+            if (confirm('هل أنت متأكد من حذف هذا الحساب؟')) {
+                accounts = accounts.filter(a => a.id !== id);
+                updateAccountsDropdown();
+                updateCardSelection();
+                displayAccounts();
+                saveData();
+                showNotification('تم حذف الحساب', 'info');
+            }
+        }
+
+        function shareAccountReport(accountId, reportType) {
+            const account = accounts.find(a => a.id === accountId);
+            if (!account) return;
+            
+            const accountDeposits = deposits.filter(d => d.account == accountId);
+            const totalDeposits = accountDeposits.reduce((sum, d) => sum + d.amount, 0);
+            const remainingLimit = account.limit - totalDeposits;
+            const percentage = account.limit > 0 ? (totalDeposits / account.limit) * 100 : 0;
+            
+            let message = `🏦 *تقرير الحساب البنكي*\n`;
+            message += `📋 اسم البنك: ${account.name}\n`;
+            message += `🔢 رقم الحساب: ${account.number}\n`;
+            message += `💳 رقم البطاقة: ${account.cardNumber || 'غير محدد'}\n`;
+            message += `👤 صاحب البطاقة: ${account.cardHolderName || 'غير محدد'}\n`;
+            message += `💰 السقف المالي: ${account.limit} ريال\n`;
+            message += `📊 إجمالي الإيداعات: ${Math.round(totalDeposits)} ريال\n`;
+            message += `💼 المبلغ المتبقي: ${Math.round(remainingLimit)} ريال\n`;
+            message += `📈 نسبة الاستخدام: ${Math.round(percentage)}%\n\n`;
+            
+            if (reportType === 'detailed' && accountDeposits.length > 0) {
+                message += `📝 *تفاصيل الإيداعات:*\n`;
+                accountDeposits.forEach((deposit, index) => {
+                    message += `${index + 1}. ${Math.round(deposit.amount)} ريال - ${new Date(deposit.timestamp).toLocaleDateString('ar-EG')}\n`;
+                });
+            } else if (reportType === 'summary') {
+                message += `📊 *ملخص الحساب:*\n`;
+                message += `• عدد الإيداعات: ${accountDeposits.length}\n`;
+                message += `• متوسط الإيداع: ${accountDeposits.length > 0 ? Math.round(totalDeposits / accountDeposits.length) : '0'} ريال\n`;
+            }
+            
+            message += `\n📅 تاريخ التقرير: ${new Date().toLocaleString('ar-EG')}`;
+            
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+        }
+
+        // Report Management
+        function saveReport() {
+            const representative = document.getElementById('representativeName').value;
+            const date = document.getElementById('reportDate').value;
+            
+            if (!representative || !date) {
+                showNotification('يرجى إدخال اسم المندوب والتاريخ', 'error');
+                return;
+            }
+            
+            if (collections.length === 0 && deposits.length === 0 && expenses.length === 0) {
+                showNotification('لا توجد بيانات لحفظها', 'error');
+                return;
+            }
+            
+            // حساب الرصيد النهائي
+            const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+            const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+            const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+            const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+            const finalBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+            
+            const report = {
+                id: Date.now(),
+                representative,
+                date,
+                collections: [...collections],
+                deposits: [...deposits],
+                expenses: [...expenses],
+                receives: [...receives],
+                delivers: [...delivers],
+                summary: {
+                    totalCollections,
+                    totalDeposits,
+                    totalExpenses,
+                    totalReceived,
+                    totalDelivered,
+                    finalBalance
+                },
+                createdAt: new Date().toISOString()
+            };
+            
+            reports.push(report);
+            saveData();
+            
+            // حفظ الرصيد النهائي كرصيد افتتاحي لليوم التالي
+            saveOpeningBalanceForNextDay(finalBalance, date);
+            
+            showNotification('تم حفظ التقرير وأرشفته بنجاح', 'success');
+        }
+
+        function saveOpeningBalanceForNextDay(balance, currentDate) {
+            // حساب تاريخ اليوم التالي
+            const nextDay = new Date(currentDate);
+            nextDay.setDate(nextDay.getDate() + 1);
+            const nextDayString = nextDay.toISOString().split('T')[0];
+            
+            // حفظ الرصيد الافتتاحي لليوم التالي
+            localStorage.setItem(`openingBalance_${nextDayString}`, balance.toString());
+            
+            const nextDayFormatted = new Date(nextDayString).toLocaleDateString('ar-EG');
+            showNotification(`تم حفظ الرصيد الافتتاحي لليوم التالي (${nextDayFormatted}): ${balance} ريال`, 'info');
+        }
+
+        function loadOpeningBalanceForToday() {
+            const today = new Date().toISOString().split('T')[0];
+            const openingBalance = localStorage.getItem(`openingBalance_${today}`);
+            
+            if (openingBalance) {
+                const todayFormatted = new Date(today).toLocaleDateString('ar-EG');
+                showNotification(`الرصيد الافتتاحي لليوم (${todayFormatted}): ${openingBalance} ريال`, 'info');
+                // يمكنك استخدام هذا الرصيد في حساباتك
+            }
+        }
+
+        function displayReports() {
+            const container = document.getElementById('reportsList');
+            
+            if (reports.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-8">لا توجد تقارير محفوظة</p>';
+                return;
+            }
+            
+            container.innerHTML = reports.map(report => {
+                // البحث عن الرصيد الافتتاحي لهذا التقرير
+                const reportDate = new Date(report.date);
+                const openingBalance = localStorage.getItem(`openingBalance_${report.date}`) || 0;
+                
+                return `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-bold text-lg">${report.representative}</h4>
+                                <p class="text-gray-600">${new Date(report.date).toLocaleDateString('ar-EG')}</p>
+                            </div>
+                            <div class="flex space-x-2 space-x-reverse">
+                                <button onclick="downloadReport(${report.id})" class="text-blue-500 hover:text-blue-700">
+                                    📥
+                                </button>
+                                <button onclick="shareReportWhatsApp(${report.id})" class="text-green-500 hover:text-green-700">
+                                    📱
+                                </button>
+                                <button onclick="removeReport(${report.id})" class="text-red-500 hover:text-red-700">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                            <div class="text-center">
+                                <div class="text-purple-600 font-semibold">${parseFloat(openingBalance).toFixed(2)}</div>
+                                <div class="text-gray-600">رصيد افتتاحي</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-green-600 font-semibold">${report.summary.totalCollections.toFixed(2)}</div>
+                                <div class="text-gray-600">التحصيلات</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-blue-600 font-semibold">${report.summary.totalDeposits.toFixed(2)}</div>
+                                <div class="text-gray-600">الإيداعات</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-red-600 font-semibold">${report.summary.totalExpenses.toFixed(2)}</div>
+                                <div class="text-gray-600">المصروفات</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-bold ${report.summary.finalBalance >= 0 ? 'text-green-600' : 'text-red-600'}">${report.summary.finalBalance.toFixed(2)}</div>
+                                <div class="text-gray-600">رصيد نهائي</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function removeReport(id) {
+            if (confirm('هل أنت متأكد من حذف هذا التقرير؟')) {
+                reports = reports.filter(r => r.id !== id);
+                displayReports();
+                saveData();
+                showNotification('تم حذف التقرير', 'info');
+            }
+        }
+
+        // Instant Text Report Generation
+        function generateInstantTextReport(type, data) {
+            const representative = document.getElementById('representativeName').value || 'غير محدد';
+            const date = document.getElementById('reportDate').value || new Date().toISOString().split('T')[0];
+            const currentTime = new Date().toLocaleDateString('ar-EG') + ' - ' + new Date().toLocaleTimeString('ar-EG', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            
+            let message = ``;
+            
+            if (type === 'collection') {
+                message = `💰 *تحصيل جديد*\n`;
+                message += `• العميل: ${data.customer}\n`;
+                message += `• النوع: ${data.type}\n`;
+                message += `• المبلغ المحصل: ${Math.round(data.amount)} ريال\n\n`;
+                
+                message += `👤 المندوب: ${representative}\n`;
+                
+                // المبلغ المتبقي (الرصيد النهائي)
+                const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+                const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+                const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+                const remainingBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+                
+                message += `💼 *المبلغ المتبقي: ${Math.round(remainingBalance)} ريال*\n\n`;
+                message += `${currentTime}`;
+                
+            } else if (type === 'deposit') {
+                message = `🏦 *إيداع جديد*\n`;
+                message += `• الحساب: ${data.account}\n`;
+                
+                // إضافة رقم الحساب
+                const accountData = accounts.find(acc => acc.name === data.account || acc.id == data.accountId);
+                if (accountData && accountData.number) {
+                    message += `• رقم الحساب: ${accountData.number}\n`;
+                }
+                
+                message += `• المبلغ المودع: ${Math.round(data.amount)} ريال\n\n`;
+                
+                // المبلغ المتبقي لسقف الحساب
+                if (accountData) {
+                    const accountDeposits = deposits.filter(d => d.account == accountData.id);
+                    const totalAccountDeposits = accountDeposits.reduce((sum, d) => sum + d.amount, 0);
+                    const remainingLimit = accountData.limit - totalAccountDeposits;
+                    
+                    message += `🏦 *المبلغ المتبقي لسقف الحساب: ${Math.round(remainingLimit)} ريال*\n`;
+                }
+                
+                message += `*👤 المندوب:* ${representative}\n`;
+                
+                // المبلغ المتبقي معك
+                const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+                const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+                const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+                const remainingBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+                
+                message += `💼 *المبلغ المتبقي معك: ${Math.round(remainingBalance)} ريال*\n\n`;
+                message += `${currentTime}`;
+                
+            } else if (type === 'expense') {
+                message = `💸 *مصروف جديد*\n`;
+                message += `• النوع: ${data.type}\n`;
+                message += `• المبلغ المصروف: ${Math.round(data.amount)} ريال\n`;
+                if (data.details) message += `• التفاصيل: ${data.details}\n`;
+                message += `*👤 المندوب:* ${representative}\n`;
+                
+                // المبلغ المتبقي معك
+                const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+                const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+                const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+                const remainingBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+                
+                message += `💼 *المبلغ المتبقي: ${Math.round(remainingBalance)} ريال*\n\n`;
+                message += `${currentTime}`;
+                
+            } else if (type === 'receive') {
+                message = `📥 *استلام من مندوب*\n`;
+                message += `• اسم المندوب: ${data.fromRep}\n`;
+                message += `• المبلغ المستلم: ${Math.round(data.amount)} ريال\n`;
+                
+                // المبلغ المتبقي معك
+                const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+                const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+                const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+                const remainingBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+                
+                message += `💼 *المبلغ المتبقي: ${Math.round(remainingBalance)} ريال*\n\n`;
+                message += `${currentTime}`;
+                
+            } else if (type === 'deliver') {
+                message = `📤 *تسليم لمندوب*\n`;
+                message += `• اسم المندوب: ${data.toRep}\n`;
+                message += `*• المبلغ المسلم: ${Math.round(data.amount)} ريال*\n\n`;
+                
+                // المبلغ المتبقي معك
+                const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+                const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+                const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+                const remainingBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+                
+                message += `💼 *المبلغ المتبقي: ${Math.round(remainingBalance)} ريال*\n\n`;
+                message += `${currentTime}`;
+            }
+            
+            // Show share options
+            showInstantReportDialog(message);
+        }
+        
+        function showInstantReportDialog(message) {
+            const dialog = document.createElement('div');
+            dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            dialog.innerHTML = `
+                <div class="bg-white rounded-xl p-6 max-w-md w-full max-h-96 overflow-y-auto">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                        <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+                            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+                        </svg>
+                        <span>تقرير فوري</span>
+                    </h3>
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4 text-sm whitespace-pre-line font-mono">${message}</div>
+                    <div class="flex space-x-3 space-x-reverse">
+                        <button onclick="shareInstantWhatsApp('${encodeURIComponent(message)}')" class="btn-success text-white px-4 py-2 rounded-lg font-semibold flex-1 flex items-center justify-center space-x-2 space-x-reverse">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path>
+                            </svg>
+                            <span>واتساب</span>
+                        </button>
+                        <button onclick="copyToClipboard('${encodeURIComponent(message)}')" class="btn-primary text-white px-4 py-2 rounded-lg font-semibold flex-1 flex items-center justify-center space-x-2 space-x-reverse">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z"></path>
+                                <path d="M3 5a2 2 0 012-2 3 3 0 003 3h6a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11.586V9H9.414l3-3H15v5.586z"></path>
+                            </svg>
+                            <span>نسخ</span>
+                        </button>
+                        <button onclick="closeInstantDialog()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold">
+                            إغلاق
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            window.currentDialog = dialog;
+        }
+        
+        function shareInstantWhatsApp(encodedMessage) {
+            const message = decodeURIComponent(encodedMessage);
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+            closeInstantDialog();
+        }
+        
+        function copyToClipboard(encodedMessage) {
+            const message = decodeURIComponent(encodedMessage);
+            navigator.clipboard.writeText(message).then(() => {
+                showNotification('تم نسخ التقرير إلى الحافظة', 'success');
+                closeInstantDialog();
+            }).catch(() => {
+                showNotification('فشل في نسخ التقرير', 'error');
+            });
+        }
+        
+        function closeInstantDialog() {
+            if (window.currentDialog) {
+                window.currentDialog.remove();
+                window.currentDialog = null;
+            }
+        }
+
+        // Debtors Management
+        function displayDebtors() {
+            // Separate debtors by region
+            const khamisDebtors = debtors.filter(d => d.region === 'خميس مشيط');
+            const dhahranDebtors = debtors.filter(d => d.region === 'ظهران الجنوب');
+            const otherDebtors = debtors.filter(d => d.region === 'باقي المناطق');
+            
+            // Update Khamis Mushait table
+            displayRegionDebtors('khamisDebtorsBody', khamisDebtors, false);
+            updateRegionStats('khamis', khamisDebtors);
+            
+            // Update Dhahran Al Janub table
+            displayRegionDebtors('dhahranDebtorsBody', dhahranDebtors, false);
+            updateRegionStats('dhahran', dhahranDebtors);
+            
+            // Update Other Regions table
+            displayRegionDebtors('otherDebtorsBody', otherDebtors, true);
+            updateRegionStats('other', otherDebtors);
+        }
+
+        function displayRegionDebtors(tableBodyId, regionDebtors, showRegion) {
+            const tbody = document.getElementById(tableBodyId);
+            
+            if (regionDebtors.length === 0) {
+                const colspan = showRegion ? 5 : 4;
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="${colspan}" class="border border-gray-300 px-4 py-8 text-center text-gray-500">
+                            لا توجد بيانات عملاء في هذه المنطقة
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = regionDebtors.map(debtor => `
+                <tr class="hover:bg-gray-50">
+                    <td class="border border-gray-300 px-4 py-3">${debtor.name}</td>
+                    <td class="border border-gray-300 px-4 py-3 font-semibold text-red-600">${debtor.amount.toFixed(2)} ريال</td>
+                    ${showRegion ? `<td class="border border-gray-300 px-4 py-3">${debtor.originalRegion || debtor.region}</td>` : ''}
+                    <td class="border border-gray-300 px-4 py-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-semibold ${getStatusClass(debtor.status)}">
+                            ${debtor.status}
+                        </span>
+                    </td>
+                    <td class="border border-gray-300 px-4 py-3">
+                        <button onclick="markAsPaid(${debtor.id})" class="text-blue-600 hover:text-blue-800" title="تم السداد">
+                            ✅
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateRegionStats(region, regionDebtors) {
+            const count = regionDebtors.length;
+            const total = regionDebtors.reduce((sum, d) => sum + d.amount, 0);
+            
+            document.getElementById(`${region}Count`).textContent = count;
+            document.getElementById(`${region}Total`).textContent = `${total.toFixed(2)} ريال`;
+        }
+
+        function getStatusClass(status) {
+            switch(status) {
+                case 'متأخر': return 'bg-red-100 text-red-800';
+                case 'مستحق': return 'bg-yellow-100 text-yellow-800';
+                case 'تم السداد': return 'bg-green-100 text-green-800';
+                default: return 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        function updateSheetId() {
+            const newSheetId = document.getElementById('customSheetId').value.trim();
+            if (newSheetId) {
+                currentSheetId = newSheetId;
+                showNotification('تم تحديث معرف الجدول', 'success');
+                addDebugLog(`Sheet ID updated to: ${currentSheetId}`);
+            }
+        }
+        
+        function usePublishedUrl() {
+            const publishedUrl = document.getElementById('publishedUrl').value.trim();
+            if (!publishedUrl) {
+                showNotification('يرجى إدخال الرابط المنشور', 'error');
+                return;
+            }
+            
+            showNotification('جاري اختبار الرابط المنشور...', 'info');
+            document.getElementById('debugInfo').classList.remove('hidden');
+            clearDebugLog();
+            
+            addDebugLog(`Testing published URL: ${publishedUrl}`);
+            
+            fetch(publishedUrl + `&cachebust=${Date.now()}`)
+                .then(response => {
+                    addDebugLog(`Response status: ${response.status}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.text();
+                })
+                .then(csvData => {
+                    addDebugLog(`CSV data received, length: ${csvData.length} characters`);
+                    
+                    if (csvData.length < 10) {
+                        throw new Error('CSV data too short');
+                    }
+                    
+                    // Store the published URL for future use
+                    localStorage.setItem('publishedSheetUrl', publishedUrl);
+                    
+                    const oldCount = debtors.length;
+                    parseCSVData(csvData);
+                    const newCount = debtors.length;
+                    
+                    addDebugLog(`✅ Data parsed successfully: ${oldCount} -> ${newCount} debtors`);
+                    
+                    document.getElementById('lastSync').textContent = new Date().toLocaleString('ar-EG');
+                    displayDebtors();
+                    saveData();
+                    
+                    showNotification(`✅ تم تحديث البيانات بنجاح من الرابط المنشور! (${newCount} عميل)`, 'success');
+                })
+                .catch(error => {
+                    addDebugLog(`❌ Published URL failed: ${error.message}`);
+                    showNotification('❌ فشل في الوصول للرابط المنشور', 'error');
+                });
+        }
+        
+        function testConnection() {
+            showNotification('جاري اختبار الاتصال...', 'info');
+            document.getElementById('debugInfo').classList.remove('hidden');
+            clearDebugLog();
+            
+            const testUrl = `https://docs.google.com/spreadsheets/d/${currentSheetId}/export?format=csv&gid=0&cachebust=${Date.now()}`;
+            addDebugLog(`Testing URL: ${testUrl}`);
+            
+            fetch(testUrl)
+                .then(response => {
+                    addDebugLog(`Response status: ${response.status}`);
+                    addDebugLog(`Response headers: ${JSON.stringify([...response.headers])}`);
+                    return response.text();
+                })
+                .then(data => {
+                    addDebugLog(`Data length: ${data.length} characters`);
+                    addDebugLog(`First 100 chars: ${data.substring(0, 100)}`);
+                    
+                    if (data.length > 10) {
+                        showNotification('✅ الاتصال ناجح! البيانات متوفرة', 'success');
+                    } else {
+                        showNotification('⚠️ الاتصال ناجح لكن البيانات فارغة', 'warning');
+                    }
+                })
+                .catch(error => {
+                    addDebugLog(`Error: ${error.message}`);
+                    showNotification('❌ فشل الاتصال', 'error');
+                });
+        }
+        
+        function toggleDebugInfo() {
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.classList.toggle('hidden');
+            if (!debugInfo.classList.contains('hidden')) {
+                clearDebugLog();
+                addDebugLog('🔍 تم تفعيل وضع التشخيص');
+                addDebugLog(`📊 معرف الجدول الحالي: ${currentSheetId}`);
+                addDebugLog(`📈 عدد العملاء المحملين حالياً: ${debtors.length}`);
+            }
+        }
+
+        function addDebugLog(message) {
+            const debugContent = document.getElementById('debugContent');
+            if (debugContent) {
+                const timestamp = new Date().toLocaleTimeString('ar-EG');
+                debugContent.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+                debugContent.scrollTop = debugContent.scrollHeight;
+            }
+        }
+        
+        function clearDebugLog() {
+            const debugContent = document.getElementById('debugContent');
+            if (debugContent) {
+                debugContent.innerHTML = '';
+            }
+        }
+
+        function syncGoogleSheets(silent = false) {
+            if (!silent) {
+                showNotification('جاري مزامنة البيانات من Google Sheets...', 'info');
+            }
+            
+            const syncButton = document.getElementById('syncButton');
+            syncButton.disabled = true;
+            syncButton.innerHTML = '⏳ جاري المزامنة...';
+            
+            // Try multiple methods to fetch data from the specific shared sheet
+            const methods = [];
+            
+            // Method 1: Direct CSV export from the shared sheet
+            methods.push({
+                url: `https://docs.google.com/spreadsheets/d/${currentSheetId}/export?format=csv&gid=0&cachebust=${Date.now()}`,
+                proxy: false,
+                name: 'Direct CSV Export'
+            });
+            
+            // Method 2: Published CSV format
+            methods.push({
+                url: `https://docs.google.com/spreadsheets/d/e/2PACX-1vQvmRGsu2THMQHHT7rDIbJJ44eJ5rCLIpkq9NYL5iUT4E/pub?gid=0&single=true&output=csv&cachebust=${Date.now()}`,
+                proxy: false,
+                name: 'Published CSV Format'
+            });
+            
+            // Method 3: GViz CSV Export
+            methods.push({
+                url: `https://docs.google.com/spreadsheets/d/${currentSheetId}/gviz/tq?tqx=out:csv&sheet=Sheet1&cachebust=${Date.now()}`,
+                proxy: false,
+                name: 'GViz CSV Export'
+            });
+            
+            // Method 4: AllOrigins proxy
+            methods.push({
+                url: `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://docs.google.com/spreadsheets/d/${currentSheetId}/export?format=csv&gid=0&cachebust=${Date.now()}`)}`,
+                proxy: true,
+                name: 'AllOrigins Proxy'
+            });
+            
+            // Method 5: CORS Anywhere proxy
+            methods.push({
+                url: `https://cors-anywhere.herokuapp.com/https://docs.google.com/spreadsheets/d/${currentSheetId}/export?format=csv&gid=0&cachebust=${Date.now()}`,
+                proxy: true,
+                name: 'CORS Anywhere'
+            });
+            
+            // Method 6: Alternative CORS proxy
+            methods.push({
+                url: `https://corsproxy.io/?${encodeURIComponent(`https://docs.google.com/spreadsheets/d/${currentSheetId}/export?format=csv&gid=0&cachebust=${Date.now()}`)}`,
+                proxy: true,
+                name: 'CORSProxy.io'
+            });
+            
+            tryFetchMethods(methods, 0, silent);
+        }
+        
+        function tryFetchMethods(methods, index, silent = false) {
+            const syncButton = document.getElementById('syncButton');
+            
+            if (index >= methods.length) {
+                addDebugLog('❌ جميع طرق الاتصال فشلت، سيتم تحميل بيانات تجريبية');
+                loadSampleDebtorData();
+                showNotification('⚠️ تعذر الاتصال بـ Google Sheets، تم تحميل بيانات تجريبية', 'warning');
+                
+                syncButton.disabled = false;
+                syncButton.innerHTML = '🔄 مزامنة البيانات';
+                return;
+            }
+            
+            const method = methods[index];
+            addDebugLog(`🔄 جاري تجربة الطريقة ${index + 1}: ${method.name}`);
+            addDebugLog(`🌐 الرابط: ${method.url.substring(0, 80)}...`);
+            
+            fetch(method.url, {
+                method: 'GET',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                },
+                mode: method.proxy ? 'cors' : 'no-cors'
+            })
+            .then(response => {
+                addDebugLog(`📡 استجابة الطريقة ${index + 1}: ${response.status} ${response.statusText}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(csvData => {
+                addDebugLog(`📊 تم استلام البيانات، الحجم: ${csvData.length} حرف`);
+                addDebugLog(`📝 أول 100 حرف: ${csvData.substring(0, 100)}`);
+                
+                if (csvData.length < 10) {
+                    throw new Error('البيانات قصيرة جداً');
+                }
+                
+                // Check if data looks like CSV
+                if (!csvData.includes(',') && !csvData.includes('\n')) {
+                    throw new Error('البيانات لا تبدو كملف CSV صحيح');
+                }
+                
+                const oldCount = debtors.length;
+                parseCSVData(csvData);
+                const newCount = debtors.length;
+                
+                addDebugLog(`✅ تم تحليل البيانات بنجاح: ${oldCount} -> ${newCount} عميل`);
+                
+                document.getElementById('lastSync').textContent = new Date().toLocaleString('ar-EG');
+                displayDebtors();
+                saveData();
+                
+                if (!silent) {
+                    showNotification(`✅ تم تحديث البيانات بنجاح! (${newCount} عميل)`, 'success');
+                }
+                
+                syncButton.disabled = false;
+                syncButton.innerHTML = '🔄 مزامنة البيانات';
+            })
+            .catch(error => {
+                addDebugLog(`❌ فشلت الطريقة ${index + 1}: ${error.message}`);
+                // Try next method after 1 second
+                setTimeout(() => tryFetchMethods(methods, index + 1, silent), 1000);
+            });
+        }
+        
+        function parseCSVData(csvData) {
+            console.log('Raw CSV data:', csvData.substring(0, 500)); // Debug log
+            
+            const lines = csvData.split('\n');
+            console.log('Total lines:', lines.length); // Debug log
+            
+            // Reset debtors data
+            debtors = [];
+            
+            // Skip header row (i = 1)
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                console.log(`Processing line ${i}:`, line); // Debug log
+                
+                // Handle CSV parsing with proper comma separation
+                const row = parseCSVRow(line);
+                console.log(`Parsed row ${i}:`, row); // Debug log
+                
+                if (row.length >= 2 && row[0]?.trim() && row[1]?.trim()) {
+                    const customerName = row[0]?.trim() || '';
+                    const amountStr = row[1]?.trim() || '0';
+                    const originalRegion = row[2]?.trim() || 'باقي المناطق';
+                    
+                    // Parse amount - handle different number formats
+                    let amount = 0;
+                    if (amountStr) {
+                        // Remove any non-numeric characters except decimal point and minus
+                        const cleanAmount = amountStr.replace(/[^\d.-]/g, '');
+                        amount = parseFloat(cleanAmount) || 0;
+                    }
+                    
+                    let region = originalRegion;
+                    
+                    // Categorize regions based on keywords
+                    if (originalRegion.includes('خميس') || originalRegion.toLowerCase().includes('khamis')) {
+                        region = 'خميس مشيط';
+                    } else if (originalRegion.includes('ظهران') || originalRegion.toLowerCase().includes('dhahran')) {
+                        region = 'ظهران الجنوب';
+                    } else {
+                        // Any other region goes to "باقي المناطق"
+                        region = 'باقي المناطق';
+                    }
+                    
+                    const debtor = {
+                        id: Date.now() + i + Math.random() * 1000,
+                        name: customerName,
+                        amount: amount,
+                        dueDate: new Date().toISOString().split('T')[0],
+                        status: amount > 0 ? 'مستحق' : 'تم السداد',
+                        phone: row[3]?.trim() || '',
+                        region: region,
+                        originalRegion: originalRegion
+                    };
+                    
+                    console.log(`Created debtor:`, debtor); // Debug log
+                    
+                    // Add all debtors, even with zero amounts for completeness
+                    if (debtor.name) {
+                        debtors.push(debtor);
+                    }
+                }
+            }
+            
+            console.log('Final debtors array:', debtors); // Debug log
+            addDebugLog(`✅ Parsed ${debtors.length} debtors from CSV data`);
+        }
+        
+        function parseCSVRow(row) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < row.length; i++) {
+                const char = row[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            
+            result.push(current);
+            return result;
+        }
+        
+        function loadSampleDebtorData() {
+            debtors = [
+                // خميس مشيط
+                { id: 1, name: 'أحمد محمد السعيد', amount: 5000, dueDate: '2024-12-15', status: 'مستحق', phone: '', region: 'خميس مشيط' },
+                { id: 2, name: 'سعد علي القحطاني', amount: 3500, dueDate: '2024-12-20', status: 'مستحق', phone: '', region: 'خميس مشيط' },
+                { id: 3, name: 'فهد عبدالله الشهري', amount: 2800, dueDate: '2024-12-25', status: 'مستحق', phone: '', region: 'خميس مشيط' },
+                
+                // ظهران الجنوب
+                { id: 4, name: 'محمد عبدالله العسيري', amount: 7500, dueDate: '2024-12-18', status: 'مستحق', phone: '', region: 'ظهران الجنوب' },
+                { id: 5, name: 'خالد أحمد الزهراني', amount: 4200, dueDate: '2024-12-22', status: 'مستحق', phone: '', region: 'ظهران الجنوب' },
+                
+                // باقي المناطق
+                { id: 6, name: 'عبدالرحمن صالح الغامدي', amount: 6300, dueDate: '2024-12-19', status: 'مستحق', phone: '', region: 'باقي المناطق' },
+                { id: 7, name: 'يوسف حسن الشهراني', amount: 2900, dueDate: '2024-12-21', status: 'مستحق', phone: '', region: 'باقي المناطق' },
+                { id: 8, name: 'عبدالله فهد القرني', amount: 5800, dueDate: '2024-12-23', status: 'مستحق', phone: '', region: 'باقي المناطق' }
+            ];
+            
+            document.getElementById('lastSync').textContent = new Date().toLocaleString('ar-EG');
+            displayDebtors();
+            saveData();
+        }
+
+        function markAsPaid(id) {
+            if (confirm('هل تم سداد هذا الدين؟')) {
+                const debtor = debtors.find(d => d.id === id);
+                if (debtor) {
+                    debtor.status = 'تم السداد';
+                    displayDebtors();
+                    saveData();
+                    showNotification('تم تحديث حالة السداد', 'success');
+                }
+            }
+        }
+
+        // Share Options Functions
+        function showShareOptions() {
+            const representative = document.getElementById('representativeName').value;
+            const date = document.getElementById('reportDate').value;
+            
+            if (!representative || !date) {
+                showNotification('يرجى إدخال اسم المندوب والتاريخ', 'error');
+                return;
+            }
+            
+            const dialog = document.createElement('div');
+            dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            dialog.innerHTML = `
+                <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center space-x-2 space-x-reverse">
+                        <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path>
+                        </svg>
+                        <span>اختر نوع التقرير</span>
+                    </h3>
+                    <div class="space-y-3">
+                        <button onclick="shareWhatsApp('summary'); closeShareDialog();" class="w-full btn-primary text-white px-4 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 space-x-reverse">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span>تقرير إجمالي</span>
+                        </button>
+                        <button onclick="shareWhatsApp('detailed'); closeShareDialog();" class="w-full btn-success text-white px-4 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 space-x-reverse">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+                            </svg>
+                            <span>تقرير تفصيلي</span>
+                        </button>
+                        <button onclick="shareWhatsApp('text'); closeShareDialog();" class="w-full btn-warning text-white px-4 py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 space-x-reverse">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span>تقرير نصي</span>
+                        </button>
+                        <button onclick="closeShareDialog()" class="w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg font-semibold">
+                            إلغاء
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            window.currentShareDialog = dialog;
+        }
+        
+        function closeShareDialog() {
+            if (window.currentShareDialog) {
+                window.currentShareDialog.remove();
+                window.currentShareDialog = null;
+            }
+        }
+
+        // Export and Share Functions
+        function generatePDF() {
+            const representative = document.getElementById('representativeName').value;
+            const date = document.getElementById('reportDate').value;
+            
+            if (!representative || !date) {
+                showNotification('يرجى إدخال اسم المندوب والتاريخ', 'error');
+                return;
+            }
+            
+            showNotification('جاري إنشاء ملف PDF...', 'info');
+            
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Set Arabic font support
+                doc.setFont('helvetica');
+                doc.setFontSize(16);
+                
+                // Header
+                doc.text('تقرير التحصيل والإيداعات', 105, 20, { align: 'center' });
+                doc.setFontSize(12);
+                doc.text(`المندوب: ${representative}`, 20, 40);
+                doc.text(`التاريخ: ${new Date(date).toLocaleDateString('ar-EG')}`, 20, 50);
+                doc.text(`وقت التقرير: ${new Date().toLocaleString('ar-EG')}`, 20, 60);
+                
+                let yPosition = 80;
+                
+                // Summary
+                doc.setFontSize(14);
+                doc.text('ملخص اليوم:', 20, yPosition);
+                yPosition += 15;
+                
+                const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+                const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+                const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+                const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+                const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+                const finalBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+                
+                doc.setFontSize(10);
+                doc.text(`إجمالي التحصيلات: ${Math.round(totalCollections)} ريال`, 20, yPosition);
+                yPosition += 10;
+                doc.text(`إجمالي الإيداعات: ${Math.round(totalDeposits)} ريال`, 20, yPosition);
+                yPosition += 10;
+                doc.text(`إجمالي المصروفات: ${Math.round(totalExpenses)} ريال`, 20, yPosition);
+                yPosition += 10;
+                doc.text(`إجمالي المستلم: ${Math.round(totalReceived)} ريال`, 20, yPosition);
+                yPosition += 10;
+                doc.text(`إجمالي المسلم: ${Math.round(totalDelivered)} ريال`, 20, yPosition);
+                yPosition += 10;
+                doc.text(`المبلغ المتبقي: ${Math.round(finalBalance)} ريال`, 20, yPosition);
+                yPosition += 20;
+                
+                // Collections Details
+                if (collections.length > 0) {
+                    doc.setFontSize(12);
+                    doc.text('تفاصيل التحصيلات:', 20, yPosition);
+                    yPosition += 10;
+                    
+                    doc.setFontSize(9);
+                    collections.forEach((collection, index) => {
+                        if (yPosition > 270) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+                        doc.text(`${index + 1}. ${collection.customer} - ${Math.round(collection.amount)} ريال (${collection.type})`, 20, yPosition);
+                        yPosition += 8;
+                    });
+                    yPosition += 10;
+                }
+                
+                // Deposits Details
+                if (deposits.length > 0) {
+                    doc.setFontSize(12);
+                    doc.text('تفاصيل الإيداعات:', 20, yPosition);
+                    yPosition += 10;
+                    
+                    doc.setFontSize(9);
+                    deposits.forEach((deposit, index) => {
+                        if (yPosition > 270) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+                        doc.text(`${index + 1}. ${deposit.accountName} - ${Math.round(deposit.amount)} ريال`, 20, yPosition);
+                        yPosition += 8;
+                    });
+                    yPosition += 10;
+                }
+                
+                // Expenses Details
+                if (expenses.length > 0) {
+                    doc.setFontSize(12);
+                    doc.text('تفاصيل المصروفات:', 20, yPosition);
+                    yPosition += 10;
+                    
+                    doc.setFontSize(9);
+                    expenses.forEach((expense, index) => {
+                        if (yPosition > 270) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+                        doc.text(`${index + 1}. ${expense.type} - ${Math.round(expense.amount)} ريال`, 20, yPosition);
+                        if (expense.details) {
+                            yPosition += 6;
+                            doc.text(`   التفاصيل: ${expense.details}`, 25, yPosition);
+                        }
+                        yPosition += 8;
+                    });
+                }
+                
+                // Footer
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.setFontSize(8);
+                    doc.text(`صفحة ${i} من ${pageCount}`, 105, 290, { align: 'center' });
+                    doc.text('نظام تحصيل وايداعات ابو حذيفة', 105, 285, { align: 'center' });
+                }
+                
+                // Save PDF
+                const fileName = `تقرير_${representative}_${date}.pdf`;
+                doc.save(fileName);
+                
+                showNotification('تم إنشاء ملف PDF بنجاح', 'success');
+                
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                showNotification('حدث خطأ في إنشاء ملف PDF', 'error');
+            }
+        }
+
+        function shareWhatsApp(reportType = 'summary') {
+            const representative = document.getElementById('representativeName').value;
+            const date = document.getElementById('reportDate').value;
+            
+            if (!representative || !date) {
+                showNotification('يرجى إدخال اسم المندوب والتاريخ', 'error');
+                return;
+            }
+            
+            const totalCollections = collections.reduce((sum, c) => sum + c.amount, 0);
+            const totalDeposits = deposits.reduce((sum, d) => sum + d.amount, 0);
+            const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+            const totalReceived = receives.reduce((sum, r) => sum + r.amount, 0);
+            const totalDelivered = delivers.reduce((sum, d) => sum + d.amount, 0);
+            const finalBalance = totalCollections - totalDeposits - totalExpenses + totalReceived - totalDelivered;
+            
+            let message = `📅 *تقرير يوم ${new Date(date).toLocaleDateString('ar-EG')}*\n👤 المندوب: ${representative}\n\n`;
+            
+            if (reportType === 'summary') {
+                message += `💰 *ملخص اليوم:*\n`;
+                message += `• إجمالي التحصيلات: ${Math.round(totalCollections)} ريال\n`;
+                message += `• إجمالي الإيداعات: ${Math.round(totalDeposits)} ريال\n`;
+                message += `• إجمالي المصروفات: ${Math.round(totalExpenses)} ريال\n`;
+                message += `• إجمالي المستلم: ${Math.round(totalReceived)} ريال\n`;
+                message += `• إجمالي المسلم: ${Math.round(totalDelivered)} ريال\n`;
+                message += `💼 *المبلغ المتبقي: ${Math.round(finalBalance)} ريال*\n\n`;
+                message += `📊 عدد العمليات:\n`;
+                message += `• التحصيلات: ${collections.length}\n`;
+                message += `• الإيداعات: ${deposits.length}\n`;
+                message += `• المصروفات: ${expenses.length}\n`;
+                message += `• المستلم: ${receives.length}\n`;
+                message += `• المسلم: ${delivers.length}`;
+                
+            } else if (reportType === 'detailed') {
+                message += `📋 *التقرير التفصيلي:*\n\n`;
+                
+                if (collections.length > 0) {
+                    message += `💰 *التحصيلات (${collections.length}):*\n`;
+                    collections.forEach((c, i) => {
+                        message += `${i + 1}. ${c.customer} - ${Math.round(c.amount)} ريال (${c.type})`;
+                        if (c.cardAccount) message += ` - ${c.cardAccount.cardNumber || c.cardAccount.number}`;
+                        message += `\n`;
+                    });
+                    message += `الإجمالي: ${Math.round(totalCollections)} ريال\n\n`;
+                }
+                
+                if (deposits.length > 0) {
+                    message += `🏦 *الإيداعات (${deposits.length}):*\n`;
+                    deposits.forEach((d, i) => {
+                        message += `${i + 1}. ${d.accountName} - ${Math.round(d.amount)} ريال\n`;
+                    });
+                    message += `الإجمالي: ${Math.round(totalDeposits)} ريال\n\n`;
+                }
+                
+                if (expenses.length > 0) {
+                    message += `💸 *المصروفات (${expenses.length}):*\n`;
+                    expenses.forEach((e, i) => {
+                        message += `${i + 1}. ${e.type} - ${Math.round(e.amount)} ريال`;
+                        if (e.details) message += ` (${e.details})`;
+                        message += `\n`;
+                    });
+                    message += `الإجمالي: ${Math.round(totalExpenses)} ريال\n\n`;
+                }
+                
+                if (receives.length > 0) {
+                    message += `📥 *المبالغ المستلمة (${receives.length}):*\n`;
+                    receives.forEach((r, i) => {
+                        message += `${i + 1}. من ${r.fromRep} - ${Math.round(r.amount)} ريال\n`;
+                    });
+                    message += `الإجمالي: ${Math.round(totalReceived)} ريال\n\n`;
+                }
+                
+                if (delivers.length > 0) {
+                    message += `📤 *المبالغ المسلمة (${delivers.length}):*\n`;
+                    delivers.forEach((d, i) => {
+                        message += `${i + 1}. إلى ${d.toRep} - ${Math.round(d.amount)} ريال\n`;
+                    });
+                    message += `الإجمالي: ${Math.round(totalDelivered)} ريال\n\n`;
+                }
+                
+                message += `💼 *المبلغ المتبقي: ${Math.round(finalBalance)} ريال*`;
+                
+            } else if (reportType === 'text') {
+                message += `📝 *التقرير النصي:*\n\n`;
+                message += `💰 التحصيلات: ${Math.round(totalCollections)} ريال (${collections.length} عملية)\n`;
+                message += `🏦 الإيداعات: ${Math.round(totalDeposits)} ريال (${deposits.length} عملية)\n`;
+                message += `💸 المصروفات: ${Math.round(totalExpenses)} ريال (${expenses.length} عملية)\n`;
+                message += `📥 المستلم: ${Math.round(totalReceived)} ريال (${receives.length} عملية)\n`;
+                message += `📤 المسلم: ${Math.round(totalDelivered)} ريال (${delivers.length} عملية)\n\n`;
+                message += `💼 *المبلغ المتبقي: ${Math.round(finalBalance)} ريال*`;
+            }
+            
+            message += `\n\n📅 ${new Date().toLocaleString('ar-EG')}`;
+            
+            const encodedMessage = encodeURIComponent(message);
+            window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+        }
+
+        function clearAll() {
+            if (confirm('هل أنت متأكد من مسح جميع البيانات؟ هذا الإجراء لا يمكن التراجع عنه.')) {
+                collections = [];
+                deposits = [];
+                expenses = [];
+                
+                updateCollectionsList();
+                updateSummary();
+                saveData();
+                
+                // Clear form fields
+                document.getElementById('representativeName').value = '';
+                document.getElementById('collectionType').value = '';
+                document.getElementById('customerName').value = '';
+                document.getElementById('collectionAmount').value = '';
+                document.getElementById('bankAccount').value = '';
+                document.getElementById('depositAmount').value = '';
+                document.getElementById('expenseType').value = '';
+                document.getElementById('expenseAmount').value = '';
+                document.getElementById('expenseDetails').value = '';
+                
+                showNotification('تم مسح جميع البيانات', 'info');
+            }
+        }
+
+        // Data Persistence
+        function saveData() {
+            const data = {
+                collections,
+                deposits,
+                expenses,
+                receives,
+                delivers,
+                accounts,
+                reports,
+                debtors,
+                lastSaved: new Date().toISOString()
+            };
+            
+            localStorage.setItem('reportSystemData', JSON.stringify(data));
+            
+            // Update last save time in header
+            const lastSaveElement = document.getElementById('lastSaveTime');
+            if (lastSaveElement) {
+                lastSaveElement.textContent = new Date().toLocaleTimeString('ar-EG', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            }
+        }
+
+        function loadData() {
+            const savedData = localStorage.getItem('reportSystemData');
+            
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                collections = data.collections || [];
+                deposits = data.deposits || [];
+                expenses = data.expenses || [];
+                receives = data.receives || [];
+                delivers = data.delivers || [];
+                accounts = data.accounts || [];
+                reports = data.reports || [];
+                debtors = data.debtors || [];
+                
+                updateCollectionsList();
+                updateDepositsList();
+                updateExpensesList();
+                updateReceivesList();
+                updateDeliversList();
+                updateAccountsDropdown();
+                
+                if (data.lastSaved) {
+                    document.getElementById('lastSync').textContent = new Date(data.lastSaved).toLocaleString('ar-EG');
+                }
+            }
+            
+            // تحميل الرصيد الافتتاحي لليوم الحالي
+            loadOpeningBalanceForToday();
+        }
+
+        // Enhanced Notification System
+        function showNotification(message, type = 'info', duration = 5000) {
+            const notification = document.createElement('div');
+            notification.className = `notification p-4 rounded-xl shadow-2xl text-white font-semibold max-w-sm backdrop-blur-sm border border-white/20 ${getNotificationClass(type)}`;
+            
+            // Add icon based on type
+            const icon = getNotificationIcon(type);
+            notification.innerHTML = `
+                <div class="flex items-center space-x-3 space-x-reverse">
+                    <div class="flex-shrink-0">
+                        ${icon}
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium">${message}</p>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="flex-shrink-0 text-white/80 hover:text-white">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('notifications').appendChild(notification);
+            
+            // Auto remove after duration
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.style.transform = 'translateX(100%)';
+                    notification.style.opacity = '0';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, duration);
+        }
+
+        function getNotificationClass(type) {
+            switch(type) {
+                case 'success': return 'bg-gradient-to-r from-green-500 to-green-600';
+                case 'error': return 'bg-gradient-to-r from-red-500 to-red-600';
+                case 'warning': return 'bg-gradient-to-r from-yellow-500 to-orange-500';
+                default: return 'bg-gradient-to-r from-blue-500 to-blue-600';
+            }
+        }
+        
+        function getNotificationIcon(type) {
+            switch(type) {
+                case 'success':
+                    return '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>';
+                case 'error':
+                    return '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>';
+                case 'warning':
+                    return '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>';
+                default:
+                    return '<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>';
+            }
+        }
+
+        // Quick Actions
+        function showQuickActions() {
+            const dialog = document.createElement('div');
+            dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 p-4';
+            dialog.innerHTML = `
+                <div class="bg-white rounded-t-3xl p-6 w-full max-w-md transform transition-transform duration-300 translate-y-0">
+                    <div class="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4"></div>
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 text-center">الإجراءات السريعة</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="quickAddCollection(); closeQuickActions();" class="btn-success text-white p-4 rounded-2xl flex flex-col items-center space-y-2">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582z"></path>
+                            </svg>
+                            <span class="text-sm font-semibold">تحصيل سريع</span>
+                        </button>
+                        <button onclick="quickAddDeposit(); closeQuickActions();" class="btn-primary text-white p-4 rounded-2xl flex flex-col items-center space-y-2">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4z"></path>
+                            </svg>
+                            <span class="text-sm font-semibold">إيداع سريع</span>
+                        </button>
+                        <button onclick="generatePDF(); closeQuickActions();" class="btn-danger text-white p-4 rounded-2xl flex flex-col items-center space-y-2">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span class="text-sm font-semibold">تصدير PDF</span>
+                        </button>
+                        <button onclick="shareWhatsApp(); closeQuickActions();" class="btn-warning text-white p-4 rounded-2xl flex flex-col items-center space-y-2">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path>
+                            </svg>
+                            <span class="text-sm font-semibold">مشاركة واتساب</span>
+                        </button>
+                    </div>
+                    <button onclick="closeQuickActions()" class="w-full mt-4 bg-gray-600 hover:bg-gray-700 text-white py-3 rounded-2xl font-semibold">
+                        إغلاق
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            window.currentQuickDialog = dialog;
+            
+            // Animate in
+            setTimeout(() => {
+                dialog.querySelector('.bg-white').style.transform = 'translateY(0)';
+            }, 10);
+        }
+        
+        function closeQuickActions() {
+            if (window.currentQuickDialog) {
+                const dialog = window.currentQuickDialog;
+                dialog.querySelector('.bg-white').style.transform = 'translateY(100%)';
+                setTimeout(() => {
+                    dialog.remove();
+                    window.currentQuickDialog = null;
+                }, 300);
+            }
+        }
+        
+        function quickAddCollection() {
+            switchTab('data-entry');
+            document.getElementById('customerName').focus();
+        }
+        
+        function quickAddDeposit() {
+            switchTab('data-entry');
+            document.getElementById('bankAccount').focus();
+        }
+
+        // Search functionality for reports
+        document.getElementById('searchReports').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const reportItems = document.querySelectorAll('#reportsList > div');
+            
+            reportItems.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(searchTerm) ? 'block' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>
