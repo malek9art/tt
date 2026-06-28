@@ -99,6 +99,7 @@ export default function CheckoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          idempotency_key: `checkout-${user.id}-${Date.now()}`,
           items: orderItems,
           address: {
             full_name:   form.full_name,
