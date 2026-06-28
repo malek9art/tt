@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm --filter @ahmadi/storefront build",
+  "installCommand": "pnpm install",
+  "framework": "nextjs",
+  "outputDirectory": "apps/storefront/.next",
+  "ignoreCommand": "exit 1"
+}
