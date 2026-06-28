@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 const PROTECTED = ["/account", "/checkout", "/orders"];
 const AUTH_ONLY = ["/login", "/register"];
@@ -9,10 +9,16 @@ export async function middleware(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: {
-      getAll() { return request.cookies.getAll(); },
-      setAll(cs) { cs.forEach(({name,value,options})=>response.cookies.set(name,value,options)); },
-    }}
+    {
+      cookies: {
+        getAll() { return request.cookies.getAll(); },
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
   );
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
