@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #09444C;
+  --color-accent:  #FFE100;
+  --bg-page:   #F8FAFB;
+  --bg-card:   #FFFFFF;
+  --bg-header: #09444C;
+  --border:    #DFE7E8;
+  --text-1:    #0F1F22;
+  --text-2:    #5B6B6E;
+  --text-muted:#8A9FA3;
+}
+.dark {
+  --bg-page:   #0A2E33;
+  --bg-card:   #0F3A41;
+  --bg-header: #052E33;
+  --border:    #1A4A52;
+  --text-1:    #E8F4F5;
+  --text-2:    #9BB5B9;
+  --text-muted:#6A8F94;
+}
+html { direction: rtl; scroll-behavior: smooth; }
+body {
+  font-family: var(--font-arabic), Cairo, Tajawal, sans-serif;
+  background: var(--bg-page);
+  color: var(--text-1);
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@layer components {
+  .container-main { @apply mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8; }
+  .card-base { @apply rounded-xl bg-[var(--bg-card)] border border-[var(--border)] shadow-card transition-shadow duration-200 hover:shadow-hover; }
+  .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-brand-800 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-accent  { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-semibold text-brand-900 transition-all duration-150 hover:bg-accent-600 active:scale-95; }
+  .btn-ghost   { @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-[var(--text-1)] transition-all duration-150 hover:bg-[var(--border)] active:scale-95; }
+  .section-title { @apply text-xl font-bold text-[var(--text-1)] border-r-4 border-accent-500 pr-3; }
+  .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+  .skeleton { @apply animate-pulse rounded-lg bg-[var(--border)]; }
+}
