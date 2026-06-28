@@ -14,7 +14,7 @@ interface OrderItem {
 }
 
 interface OrderPayload {
-  items:          OrderItem[];
+  items:           OrderItem[];
   address: {
     full_name:   string;
     phone:       string;
@@ -27,6 +27,18 @@ interface OrderPayload {
   notes:           string;
   coupon_code:     string;
   idempotency_key?: string;
+}
+
+interface ExistingOrder {
+  id:           string;
+  order_number: string;
+  total_amount: number;
+  currency:     string;
+}
+
+interface PaymentWithOrder {
+  order_id: string;
+  orders:   ExistingOrder | ExistingOrder[] | null;
 }
 
 export async function POST(request: NextRequest) {
@@ -67,10 +79,11 @@ export async function POST(request: NextRequest) {
         .from("payments")
         .select("order_id, orders(id, order_number, total_amount, currency)")
         .eq("idempotency_key", idempotencyKey)
-        .maybeSingle();
+        .maybeSingle() as { data: PaymentWithOrder | null };
 
       if (existing?.order_id) {
-        const order = existing.orders as {id:string;order_number:string;total_amount:number;currency:string} | null;
+        const rawOrder = existing.orders;
+        const order = Array.isArray(rawOrder) ? rawOrder[0] : rawOrder;
         return NextResponse.json({
           success:      true,
           order_id:     existing.order_id,
@@ -82,10 +95,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const subtotal    = body.items.reduce((s, i) => s + i.subtotal, 0);
-    const shipping    = subtotal >= 50000 ? 0 : 2000;
-    const total       = subtotal + shipping;
-    const currency    = "YER";
+    const subtotal = body.items.reduce((s, i) => s + i.subtotal, 0);
+    const shipping = subtotal >= 50000 ? 0 : 2000;
+    const total    = subtotal + shipping;
+    const currency = "YER";
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
@@ -130,7 +143,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "فشل في حفظ عناصر الطلب" }, { status: 500 });
     }
 
-    // إنشاء سجل الدفع مع Idempotency Key
+    // سجل الدفع مع Idempotency Key
     await supabase.from("payments").insert({
       order_id:        order.id,
       provider_code:   body.payment_method || "cod",
@@ -141,7 +154,7 @@ export async function POST(request: NextRequest) {
       idempotency_key: idempotencyKey ?? `order-${order.id}-${Date.now()}`,
     });
 
-    // إنشاء سجل الشحن
+    // سجل الشحن
     await supabase.from("shipments").insert({
       order_id: order.id,
       status:   "pending",
@@ -154,6 +167,7 @@ export async function POST(request: NextRequest) {
       total,
       currency,
     });
+
   } catch (err) {
     console.error("Checkout API error:", err);
     return NextResponse.json({ error: "خطأ غير متوقع" }, { status: 500 });
