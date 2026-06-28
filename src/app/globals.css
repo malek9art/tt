@@ -1,27 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --color-primary: #09444C;
-  --color-accent: #FFE100;
-  --bg-page: #F8FAFB;
-  --bg-card: #FFFFFF;
-  --text-primary: #0F1F22;
-}
-
-.dark {
-  --bg-page: #0A2E33;
-  --bg-card: #0F3A41;
-  --text-primary: #E8F4F5;
-}
-
-html {
-  direction: rtl;
-  font-family: "IBM Plex Sans Arabic", Cairo, sans-serif;
-}
-
+* { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  background-color: var(--bg-page);
-  color: var(--text-primary);
+  font-family: "Cairo", "Segoe UI", sans-serif;
+  background: #09444C;
+  color: #fff;
+  direction: rtl;
 }
