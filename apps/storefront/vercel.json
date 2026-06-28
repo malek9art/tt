@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@ahmadi/storefront",
+  "installCommand": "npm install -g pnpm@9.14.0 && pnpm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next"
+}
