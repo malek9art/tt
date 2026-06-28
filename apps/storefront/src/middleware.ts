@@ -1,43 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createMiddlewareClient } from "@/infrastructure/supabase/client";
+import { createServerClient } from "@supabase/ssr";
 
-/**
- * مسارات تتطلب تسجيل دخول
- */
-const PROTECTED_ROUTES = [
-  "/account",
-  "/checkout",
-  "/orders",
-];
-
-/**
- * مسارات لا يراها المستخدم المسجّل (login/register)
- */
+const PROTECTED_ROUTES = ["/account", "/checkout", "/orders"];
 const AUTH_ROUTES = ["/login", "/register"];
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
-  const supabase = createMiddlewareClient(request, response);
 
-  // تحديث الجلسة (ضروري مع @supabase/ssr)
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return request.cookies.getAll(); },
+        setAll(cookiesToSet) {
+          for (const { name, value } of cookiesToSet) {
+            request.cookies.set(name, value);
+          }
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set(name, value, options);
+          }
+        },
+      },
+    }
+  );
+
   const { data: { user } } = await supabase.auth.getUser();
-
   const pathname = request.nextUrl.pathname;
 
-  // إذا المسار محمي والمستخدم غير مسجّل → توجيه لصفحة الدخول
-  const isProtected = PROTECTED_ROUTES.some((route) =>
-    pathname.startsWith(route)
-  );
+  const isProtected = PROTECTED_ROUTES.some((r) => pathname.startsWith(r));
   if (isProtected && !user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // إذا المستخدم مسجّل وحاول الوصول لـ login/register → الرئيسية
-  const isAuthRoute = AUTH_ROUTES.some((route) =>
-    pathname.startsWith(route)
-  );
+  const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   if (isAuthRoute && user) {
     return NextResponse.redirect(new URL("/", request.url));
   }
@@ -46,14 +44,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * تجاهل:
-     * - _next/static
-     * - _next/image
-     * - favicon.ico
-     * - ملفات الأصول
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
