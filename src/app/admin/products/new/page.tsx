@@ -48,10 +48,8 @@ export default function NewProductPage() {
     if (t && !form.tags.includes(t)) { setF("tags",[...form.tags,t]); setTag(""); }
   };
 
-  // حفظ مؤقت للحصول على ID لربط الصور
-  const handleDraftSave = async () => {
-    if (!form.name_ar.trim()) { setError("اسم المنتج إلزامي"); return; }
-    if (savedId) return savedId; // موجود بالفعل
+  const createProduct = async (): Promise<string|null> => {
+    if (savedId) return savedId;
     const res = await fetch("/api/admin/products",{
       method:"POST", headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
@@ -62,10 +60,10 @@ export default function NewProductPage() {
         status:"draft",
       }),
     });
-    const d = await res.json();
     if (!res.ok) return null;
+    const d = await res.json() as {id:string};
     setSavedId(d.id);
-    return d.id as string;
+    return d.id;
   };
 
   const handleSubmit = async () => {
@@ -73,35 +71,26 @@ export default function NewProductPage() {
     if (form.base_price<=0)   { setError("السعر يجب أن يكون أكبر من صفر"); return; }
     setLoading(true); setError("");
 
-    // 1. أنشئ المنتج أو احصل على ID
-    let id = savedId;
-    if (!id) {
-      id = await handleDraftSave();
-      if (!id) { setError("فشل في حفظ المنتج"); setLoading(false); return; }
-    } else {
-      // تحديث البيانات
-      await fetch(`/api/admin/products/${id}`,{
-        method:"PATCH", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          ...form, base_price:Number(form.base_price),
-          category_id:form.category_id||null, brand_id:form.brand_id||null,
-        }),
-      });
-    }
+    const id = await createProduct();
+    if (!id) { setError("فشل في حفظ المنتج، حاول مجدداً"); setLoading(false); return; }
 
-    // 2. احفظ الصور
+    // تحديث البيانات بالحالة المختارة
+    await fetch(`/api/admin/products/${id}`,{
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        ...form, base_price:Number(form.base_price),
+        category_id:form.category_id||null, brand_id:form.brand_id||null,
+        status: form.status,
+      }),
+    });
+
+    // حفظ الصور
     if (images.length > 0) {
       await fetch(`/api/admin/products/${id}/images`,{
         method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify(images),
       });
     }
-
-    // 3. تحديث الحالة النهائية
-    await fetch(`/api/admin/products/${id}`,{
-      method:"PATCH", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ status: form.status }),
-    });
 
     router.replace(`/admin/products/${id}`);
   };
@@ -121,7 +110,6 @@ export default function NewProductPage() {
 
       <div className="grid gap-5 md:grid-cols-3">
         <div className="md:col-span-2 space-y-5">
-          {/* المعلومات الأساسية */}
           <div className="card-base p-5 space-y-4">
             <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">المعلومات الأساسية</h2>
             <div>
@@ -132,7 +120,8 @@ export default function NewProductPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الاسم بالإنجليزي</label>
-                <input type="text" dir="ltr" value={form.name_en} onChange={e=>setF("name_en",e.target.value)} className={iCls}/>
+                <input type="text" dir="ltr" value={form.name_en}
+                  onChange={e=>setF("name_en",e.target.value)} className={iCls}/>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">SKU</label>
@@ -142,22 +131,21 @@ export default function NewProductPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الوصف التفصيلي</label>
-              <textarea rows={4} value={form.description} onChange={e=>setF("description",e.target.value)}
-                placeholder="أدخل وصفاً تفصيلياً للمنتج — المواصفات، المميزات..."
+              <textarea rows={4} value={form.description}
+                onChange={e=>setF("description",e.target.value)}
+                placeholder="المواصفات، المميزات، التفاصيل..."
                 className={iCls+" resize-none"}/>
             </div>
           </div>
 
-          {/* الصور */}
           <div className="card-base p-5 space-y-3">
             <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">صور المنتج</h2>
             <ImageUploader
-              productId={savedId || `temp-${Date.now()}`}
+              productId={savedId ?? `temp-${Date.now()}`}
               onChange={setImages}
             />
           </div>
 
-          {/* التسعير */}
           <div className="card-base p-5 space-y-4">
             <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">التسعير</h2>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -179,12 +167,12 @@ export default function NewProductPage() {
             </div>
           </div>
 
-          {/* الوسوم */}
           <div className="card-base p-5 space-y-3">
             <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">الوسوم</h2>
             <div className="flex gap-2">
-              <input type="text" placeholder="أضف وسم واضغط Enter" value={tag}
-                onChange={e=>setTag(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),addTag())}
+              <input type="text" placeholder="أضف وسم..." value={tag}
+                onChange={e=>setTag(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),addTag())}
                 className={iCls+" flex-1"}/>
               <button onClick={addTag} className="btn-ghost border border-[var(--border)] px-3">
                 <Plus size={14}/>
@@ -202,20 +190,19 @@ export default function NewProductPage() {
           </div>
         </div>
 
-        {/* العمود الجانبي */}
         <div className="space-y-5">
           <div className="card-base p-5 space-y-4">
             <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">الحالة</h2>
             <div>
               <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">حالة النشر</label>
               <select value={form.status} onChange={e=>setF("status",e.target.value)} className={iCls}>
-                <option value="draft">مسودة (غير مرئي)</option>
-                <option value="published">منشور (مرئي للعملاء)</option>
+                <option value="draft">مسودة</option>
+                <option value="published">منشور</option>
                 <option value="archived">مؤرشف</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">نوع المنتج</label>
+              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">النوع</label>
               <select value={form.type} onChange={e=>setF("type",e.target.value)} className={iCls}>
                 <option value="physical">منتج مادي</option>
                 <option value="service">خدمة</option>
@@ -232,7 +219,7 @@ export default function NewProductPage() {
               <input type="checkbox" checked={form.is_featured}
                 onChange={e=>setF("is_featured",e.target.checked)}
                 className="h-4 w-4 rounded text-brand-700"/>
-              <span className="text-sm text-[var(--text-1)]">منتج مميّز (يظهر في الرئيسية)</span>
+              <span className="text-sm text-[var(--text-1)]">منتج مميّز (الرئيسية)</span>
             </label>
           </div>
 
@@ -257,8 +244,8 @@ export default function NewProductPage() {
           <button onClick={handleSubmit} disabled={loading}
             className="btn-primary w-full justify-center text-base py-3">
             {loading
-              ? <><Loader2 size={16} className="animate-spin"/> جارٍ الحفظ...</>
-              : <><Save size={16}/> حفظ المنتج</>}
+              ?<><Loader2 size={16} className="animate-spin"/> جارٍ الحفظ...</>
+              :<><Save size={16}/> حفظ المنتج</>}
           </button>
         </div>
       </div>
