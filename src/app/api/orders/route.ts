@@ -3,14 +3,14 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 interface OrderItem {
-  product_id:    string;
-  variant_id:    string | null;
-  name_snapshot: string;
-  sku_snapshot:  string | null;
+  product_id:     string;
+  variant_id:     string | null;
+  name_snapshot:  string;
+  sku_snapshot:   string | null;
   attrs_snapshot: Record<string, string>;
-  price:         number;
-  quantity:      number;
-  subtotal:      number;
+  price:          number;
+  quantity:       number;
+  subtotal:       number;
 }
 
 interface OrderPayload {
@@ -23,9 +23,10 @@ interface OrderPayload {
     street:      string;
     landmark:    string;
   };
-  payment_method: string;
-  notes:          string;
-  coupon_code:    string;
+  payment_method:  string;
+  notes:           string;
+  coupon_code:     string;
+  idempotency_key?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -39,13 +40,12 @@ export async function POST(request: NextRequest) {
           getAll() { return cookieStore.getAll(); },
           setAll(cs: { name: string; value: string; options: CookieOptions }[]) {
             try { cs.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); }
-            catch { /* */ }
+            catch { /* Server Components */ }
           },
         },
       }
     );
 
-    // التحقق من الجلسة — الطلب يتطلب تسجيل دخول
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "يجب تسجيل الدخول أولاً" }, { status: 401 });
@@ -53,7 +53,6 @@ export async function POST(request: NextRequest) {
 
     const body: OrderPayload = await request.json();
 
-    // التحقق من البيانات الأساسية
     if (!body.items?.length) {
       return NextResponse.json({ error: "السلة فارغة" }, { status: 400 });
     }
@@ -61,13 +60,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "بيانات التوصيل ناقصة" }, { status: 400 });
     }
 
-    // حساب المجاميع
-    const subtotal = body.items.reduce((s, i) => s + i.subtotal, 0);
-    const shipping = subtotal >= 50000 ? 0 : 2000;
-    const total    = subtotal + shipping;
-    const currency = "YER";
+    // ===== Idempotency: منع الطلبات المكررة =====
+    const idempotencyKey = body.idempotency_key;
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from("payments")
+        .select("order_id, orders(id, order_number, total_amount, currency)")
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
 
-    // ===== إنشاء الطلب =====
+      if (existing?.order_id) {
+        const order = existing.orders as {id:string;order_number:string;total_amount:number;currency:string} | null;
+        return NextResponse.json({
+          success:      true,
+          order_id:     existing.order_id,
+          order_number: order?.order_number ?? "",
+          total:        order?.total_amount ?? 0,
+          currency:     order?.currency ?? "YER",
+          duplicate:    true,
+        });
+      }
+    }
+
+    const subtotal    = body.items.reduce((s, i) => s + i.subtotal, 0);
+    const shipping    = subtotal >= 50000 ? 0 : 2000;
+    const total       = subtotal + shipping;
+    const currency    = "YER";
+
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
@@ -90,17 +109,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "فشل في إنشاء الطلب" }, { status: 500 });
     }
 
-    // ===== إضافة عناصر الطلب =====
     const orderItems = body.items.map(item => ({
-      order_id:      order.id,
-      product_id:    item.product_id,
-      variant_id:    item.variant_id,
-      name_snapshot: item.name_snapshot,
-      sku_snapshot:  item.sku_snapshot,
+      order_id:       order.id,
+      product_id:     item.product_id,
+      variant_id:     item.variant_id,
+      name_snapshot:  item.name_snapshot,
+      sku_snapshot:   item.sku_snapshot,
       attrs_snapshot: item.attrs_snapshot,
-      price:         item.price,
-      quantity:      item.quantity,
-      subtotal:      item.subtotal,
+      price:          item.price,
+      quantity:       item.quantity,
+      subtotal:       item.subtotal,
     }));
 
     const { error: itemsError } = await supabase
@@ -108,19 +126,26 @@ export async function POST(request: NextRequest) {
       .insert(orderItems);
 
     if (itemsError) {
-      console.error("Order items error:", itemsError);
-      // نحذف الطلب إن فشل إدراج العناصر
       await supabase.from("orders").delete().eq("id", order.id);
       return NextResponse.json({ error: "فشل في حفظ عناصر الطلب" }, { status: 500 });
     }
 
-    // ===== إنشاء سجل الشحن =====
+    // إنشاء سجل الدفع مع Idempotency Key
+    await supabase.from("payments").insert({
+      order_id:        order.id,
+      provider_code:   body.payment_method || "cod",
+      method:          body.payment_method || "cod",
+      amount:          total,
+      currency,
+      status:          "pending",
+      idempotency_key: idempotencyKey ?? `order-${order.id}-${Date.now()}`,
+    });
+
+    // إنشاء سجل الشحن
     await supabase.from("shipments").insert({
       order_id: order.id,
       status:   "pending",
     });
-
-    // ===== سجل التدقيق (Audit Log) — عبر service_role لاحقاً =====
 
     return NextResponse.json({
       success:      true,
