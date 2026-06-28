@@ -30,24 +30,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // إعادة توجيه المسجّلين من صفحات الدخول
+  // إعادة توجيه المسجّلين
   if (AUTH_ONLY.some(r => pathname.startsWith(r)) && user) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
   // حماية لوحة الإدارة
   if (ADMIN_ONLY.some(r => pathname.startsWith(r))) {
+    if (pathname === "/admin/login") return response;
+
     if (!user) {
-      const url = new URL("/admin/login", request.url);
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(new URL("/admin/login", request.url));
     }
-    // التحقق من دور الإدارة
+
     const { data: isAdmin } = await supabase.rpc("has_permission", {
       _user_id: user.id,
       _perm: "products:read",
     });
-    if (!isAdmin && pathname !== "/admin/login") {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
+
+    if (!isAdmin) {
+      return NextResponse.redirect(new URL("/admin/login?error=unauthorized", request.url));
     }
   }
 
@@ -55,5 +57,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
