@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import CartDrawer from "@/components/cart/CartDrawer";
+import AuthProvider from "@/components/auth/AuthProvider";
 import "./globals.css";
 
 const fontArabic = IBM_Plex_Sans_Arabic({
@@ -32,8 +33,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ar" dir="rtl" suppressHydrationWarning className={fontArabic.variable}>
       <body>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange={false}>
-          {children}
-          <CartDrawer />
+          <AuthProvider>
+            {children}
+            <CartDrawer />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
