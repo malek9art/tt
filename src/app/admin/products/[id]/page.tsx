@@ -21,12 +21,12 @@ export default function EditProductPage() {
       .then(d=>{
         setProduct(d);
         setForm({
-          name_ar:     d.name_ar     ?? "",
-          description: d.description ?? "",
-          base_price:  d.base_price  ?? 0,
-          status:      d.status      ?? "draft",
-          is_featured: d.is_featured ?? false,
-          warranty:    d.warranty    ?? "",
+          name_ar:     String(d.name_ar     ?? ""),
+          description: String(d.description ?? ""),
+          base_price:  Number(d.base_price  ?? 0),
+          status:      String(d.status      ?? "draft"),
+          is_featured: Boolean(d.is_featured ?? false),
+          warranty:    String(d.warranty    ?? ""),
         });
         setLoading(false);
       });
@@ -40,7 +40,7 @@ export default function EditProductPage() {
       method:"PATCH", headers:{"Content-Type":"application/json"},
       body:JSON.stringify({ ...form, base_price:Number(form.base_price) }),
     });
-    if (!res.ok) { const d=await res.json(); setError(d.error??"خطأ"); }
+    if (!res.ok) { const d=await res.json(); setError(String(d.error??"خطأ")); }
     setSaving(false);
   };
 
@@ -51,6 +51,7 @@ export default function EditProductPage() {
   };
 
   const inputCls = "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
+  const productSlug = typeof product?.slug === "string" ? product.slug : null;
 
   if (loading) return (
     <div className="space-y-4 max-w-3xl">
@@ -72,8 +73,8 @@ export default function EditProductPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {product?.slug && (
-            <Link href={`/products/${product.slug as string}`} target="_blank"
+          {productSlug && (
+            <Link href={`/products/${productSlug}`} target="_blank"
               className="btn-ghost border border-[var(--border)] gap-1.5 text-sm">
               <Eye size={14}/> عرض
             </Link>
@@ -99,7 +100,6 @@ export default function EditProductPage() {
               <textarea rows={5} value={form.description} onChange={e=>setF("description",e.target.value)} className={inputCls+" resize-none"}/>
             </div>
           </div>
-
           <div className="card-base p-5 space-y-4">
             <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">التسعير</h2>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -114,7 +114,6 @@ export default function EditProductPage() {
             </div>
           </div>
         </div>
-
         <div className="space-y-5">
           <div className="card-base p-5 space-y-4">
             <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">الحالة</h2>
@@ -131,16 +130,12 @@ export default function EditProductPage() {
               <span className="text-sm text-[var(--text-1)]">منتج مميّز</span>
             </label>
           </div>
-
           <button onClick={handleSave} disabled={saving} className="btn-primary w-full justify-center">
             {saving ? <><Loader2 size={16} className="animate-spin"/> حفظ...</> : <><Save size={16}/> حفظ التعديلات</>}
           </button>
-
-          {/* معلومات القراءة فقط */}
-          <div className="card-base p-4 space-y-2 text-xs text-[var(--text-muted)]">
-            <p dir="ltr">ID: {String(product?.id ?? "").slice(0,8)}...</p>
-            {product?.sku && <p>SKU: {product.sku as string}</p>}
-            <p>تاريخ الإنشاء: {product?.created_at ? new Date(product.created_at as string).toLocaleDateString("ar-YE") : "—"}</p>
+          <div className="card-base p-4 space-y-1 text-xs text-[var(--text-muted)]">
+            {productSlug && <p dir="ltr">Slug: {productSlug}</p>}
+            <p>تاريخ الإنشاء: {product?.created_at ? new Date(String(product.created_at)).toLocaleDateString("ar-YE") : "—"}</p>
           </div>
         </div>
       </div>
