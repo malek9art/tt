@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-const PROTECTED = ["/account", "/checkout", "/orders"];
-const AUTH_ONLY = ["/login", "/register"];
+const PROTECTED  = ["/account", "/checkout", "/orders"];
+const AUTH_ONLY  = ["/login", "/register"];
+const ADMIN_ONLY = ["/admin"];
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -12,25 +13,44 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() { return request.cookies.getAll(); },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
+        setAll(cs: { name: string; value: string; options: CookieOptions }[]) {
+          cs.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
         },
       },
     }
   );
+
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
 
+  // حماية صفحات العملاء
   if (PROTECTED.some(r => pathname.startsWith(r)) && !user) {
     const url = new URL("/login", request.url);
     url.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(url);
   }
+
+  // إعادة توجيه المسجّلين من صفحات الدخول
   if (AUTH_ONLY.some(r => pathname.startsWith(r)) && user) {
     return NextResponse.redirect(new URL("/", request.url));
   }
+
+  // حماية لوحة الإدارة
+  if (ADMIN_ONLY.some(r => pathname.startsWith(r))) {
+    if (!user) {
+      const url = new URL("/admin/login", request.url);
+      return NextResponse.redirect(url);
+    }
+    // التحقق من دور الإدارة
+    const { data: isAdmin } = await supabase.rpc("has_permission", {
+      _user_id: user.id,
+      _perm: "products:read",
+    });
+    if (!isAdmin && pathname !== "/admin/login") {
+      return NextResponse.redirect(new URL("/admin/login", request.url));
+    }
+  }
+
   return response;
 }
 
