@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   CSS Variables — مركز الأحمدي للجوالات
+   الوضع الفاتح (Light Mode) — الافتراضي
+   ============================================================ */
+:root {
+  /* ألوان الهوية */
+  --color-primary:        #09444C;
+  --color-primary-light:  #D6EAED;
+  --color-primary-dark:   #052E33;
+  --color-accent:         #FFE100;
+  --color-accent-dark:    #D9BE00;
+
+  /* سطوح (Surfaces) */
+  --bg-page:    #F8FAFB;
+  --bg-card:    #FFFFFF;
+  --bg-header:  #09444C;
+  --bg-muted:   #EFF6F7;
+  --border-color: #DFE7E8;
+
+  /* نصوص */
+  --text-primary:   #0F1F22;
+  --text-secondary: #5B6B6E;
+  --text-muted:     #8A9FA3;
+  --text-on-dark:   #FFFFFF;
+  --text-accent:    #D9BE00;   /* الأصفر على خلفية فاتحة — نسخة أغمق للقراءة */
+
+  /* حالات */
+  --color-success: #16A34A;
+  --color-error:   #DC2626;
+  --color-warning: #F59E0B;
+  --color-info:    #0EA5E9;
+
+  /* توقيتات الحركة */
+  --dur-micro: 120ms;
+  --dur-fast:  200ms;
+  --dur-base:  300ms;
+  --dur-slow:  400ms;
+
+  --ease-standard:   cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+
+  /* حواف */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+/* ============================================================
+   Dark Mode
+   ============================================================ */
+.dark {
+  --color-primary:        #4E97A2;
+  --color-primary-light:  #1A4A52;
+  --color-primary-dark:   #031E22;
+  --color-accent:         #FFE100;
+  --color-accent-dark:    #FFE100;
+
+  --bg-page:    #0A2E33;
+  --bg-card:    #0F3A41;
+  --bg-header:  #052E33;
+  --bg-muted:   #0C3540;
+  --border-color: #1A4A52;
+
+  --text-primary:   #E8F4F5;
+  --text-secondary: #9BB5B9;
+  --text-muted:     #6A8F94;
+  --text-on-dark:   #FFFFFF;
+  --text-accent:    #FFE100;
+
+  --color-success: #22C55E;
+  --color-error:   #F87171;
+  --color-warning: #FCD34D;
+  --color-info:    #38BDF8;
+}
+
+/* ============================================================
+   RTL Base — العربية من اليمين لليسار
+   ============================================================ */
+html {
+  direction: rtl;
+  font-family: "IBM Plex Sans Arabic", Cairo, Tajawal, sans-serif;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
+}
+
+/* ============================================================
+   prefers-reduced-motion — إمكانية الوصول
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   مكوّنات أساسية مشتركة (@layer components)
+   ============================================================ */
+@layer components {
+  /* حاوية رئيسية */
+  .container-main {
+    @apply mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8;
+  }
+
+  /* بطاقة أساسية */
+  .card {
+    @apply rounded-lg bg-[var(--bg-card)] p-6 shadow-card
+           border border-[var(--border-color)]
+           transition-shadow duration-[var(--dur-fast)];
+  }
+
+  .card:hover {
+    @apply shadow-hover;
+  }
+
+  /* تأثير shimmer للـ Skeleton */
+  .shimmer {
+    @apply relative overflow-hidden bg-[var(--bg-muted)];
+  }
+
+  .shimmer::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.15) 50%,
+      transparent 100%
+    );
+    animation: shimmer-slide 1.5s infinite;
+  }
+
+  @keyframes shimmer-slide {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+  }
+
+  /* Glassmorphism للهيدر العائم */
+  .glass {
+    @apply backdrop-blur-md bg-white/10 dark:bg-black/20
+           border border-white/20;
+  }
+
+  /* زر CTA أساسي بلون الهوية */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-lg bg-brand-700 px-6 py-3
+           text-sm font-semibold text-white
+           transition-all duration-[var(--dur-fast)] var(--ease-standard)
+           hover:bg-brand-800 active:scale-95
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-accent-500 focus-visible:ring-offset-2
+           disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* زر تمييزي بالأصفر */
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-lg bg-accent-500 px-6 py-3
+           text-sm font-semibold text-brand-900
+           transition-all duration-[var(--dur-fast)] var(--ease-standard)
+           hover:bg-accent-600 active:scale-95
+           focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-brand-700 focus-visible:ring-offset-2;
+  }
+}
+
+/* ============================================================
+   أدوات مساعدة (@layer utilities)
+   ============================================================ */
+@layer utilities {
+  /* إخفاء شريط التمرير مع الإبقاء على الوظيفة */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* نص بلون الهوية */
+  .text-brand { color: var(--color-primary); }
+  .text-accent { color: var(--color-accent); }
+
+  /* تأثير Bento للصفحة الرئيسية */
+  .bento-grid {
+    @apply grid grid-cols-2 md:grid-cols-4 gap-4;
+  }
+
+  /* عنوان قسم */
+  .section-title {
+    @apply text-2xl font-bold text-[var(--text-primary)] mb-6
+           border-r-4 border-accent-500 pr-3;
+  }
+}
