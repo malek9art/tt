@@ -1,0 +1,149 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Save, ArrowRight, Trash2, Eye, Loader2 } from "lucide-react";
+
+export default function EditProductPage() {
+  const { id }  = useParams<{ id: string }>();
+  const router  = useRouter();
+  const [product, setProduct] = useState<Record<string,unknown>|null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState("");
+  const [form, setForm] = useState({
+    name_ar:"", description:"", base_price:0, status:"draft", is_featured:false, warranty:""
+  });
+
+  useEffect(() => {
+    fetch(`/api/admin/products/${id}`)
+      .then(r=>r.json())
+      .then(d=>{
+        setProduct(d);
+        setForm({
+          name_ar:     d.name_ar     ?? "",
+          description: d.description ?? "",
+          base_price:  d.base_price  ?? 0,
+          status:      d.status      ?? "draft",
+          is_featured: d.is_featured ?? false,
+          warranty:    d.warranty    ?? "",
+        });
+        setLoading(false);
+      });
+  }, [id]);
+
+  const setF = (k:string, v:unknown) => setForm(f=>({...f,[k]:v}));
+
+  const handleSave = async () => {
+    setSaving(true); setError("");
+    const res = await fetch(`/api/admin/products/${id}`,{
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ ...form, base_price:Number(form.base_price) }),
+    });
+    if (!res.ok) { const d=await res.json(); setError(d.error??"خطأ"); }
+    setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("هل تريد حذف هذا المنتج نهائياً؟")) return;
+    await fetch(`/api/admin/products/${id}`,{ method:"DELETE" });
+    router.replace("/admin/products");
+  };
+
+  const inputCls = "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
+
+  if (loading) return (
+    <div className="space-y-4 max-w-3xl">
+      <div className="skeleton h-10 w-48" />
+      {[1,2,3].map(i=><div key={i} className="skeleton h-32 w-full" />)}
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 max-w-3xl">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Link href="/admin/products" className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
+            <ArrowRight size={16} />
+          </Link>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--text-1)] line-clamp-1">{form.name_ar}</h1>
+            <p className="text-xs text-[var(--text-muted)]">تعديل المنتج</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {product?.slug && (
+            <Link href={`/products/${product.slug as string}`} target="_blank"
+              className="btn-ghost border border-[var(--border)] gap-1.5 text-sm">
+              <Eye size={14}/> عرض
+            </Link>
+          )}
+          <button onClick={handleDelete} className="btn-ghost border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1.5 text-sm">
+            <Trash2 size={14}/> حذف
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600">⚠ {error}</div>}
+
+      <div className="grid gap-5 md:grid-cols-3">
+        <div className="md:col-span-2 space-y-5">
+          <div className="card-base p-5 space-y-4">
+            <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">المعلومات الأساسية</h2>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">اسم المنتج</label>
+              <input type="text" value={form.name_ar} onChange={e=>setF("name_ar",e.target.value)} className={inputCls}/>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الوصف</label>
+              <textarea rows={5} value={form.description} onChange={e=>setF("description",e.target.value)} className={inputCls+" resize-none"}/>
+            </div>
+          </div>
+
+          <div className="card-base p-5 space-y-4">
+            <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">التسعير</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">السعر (YER)</label>
+                <input type="number" min="0" dir="ltr" value={form.base_price} onChange={e=>setF("base_price",Number(e.target.value))} className={inputCls}/>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الضمان</label>
+                <input type="text" value={form.warranty} onChange={e=>setF("warranty",e.target.value)} className={inputCls}/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div className="card-base p-5 space-y-4">
+            <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">الحالة</h2>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">حالة النشر</label>
+              <select value={form.status} onChange={e=>setF("status",e.target.value)} className={inputCls}>
+                <option value="draft">مسودة</option>
+                <option value="published">منشور</option>
+                <option value="archived">مؤرشف</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.is_featured} onChange={e=>setF("is_featured",e.target.checked)} className="h-4 w-4 rounded text-brand-700"/>
+              <span className="text-sm text-[var(--text-1)]">منتج مميّز</span>
+            </label>
+          </div>
+
+          <button onClick={handleSave} disabled={saving} className="btn-primary w-full justify-center">
+            {saving ? <><Loader2 size={16} className="animate-spin"/> حفظ...</> : <><Save size={16}/> حفظ التعديلات</>}
+          </button>
+
+          {/* معلومات القراءة فقط */}
+          <div className="card-base p-4 space-y-2 text-xs text-[var(--text-muted)]">
+            <p dir="ltr">ID: {String(product?.id ?? "").slice(0,8)}...</p>
+            {product?.sku && <p>SKU: {product.sku as string}</p>}
+            <p>تاريخ الإنشاء: {product?.created_at ? new Date(product.created_at as string).toLocaleDateString("ar-YE") : "—"}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
