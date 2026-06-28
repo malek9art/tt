@@ -1,0 +1,11 @@
+{
+  "name": "@ahmadi/ui",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./tokens": "./src/tokens/index.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
