@@ -14,49 +14,57 @@ const STATUS_STYLE: Record<string,{label:string;color:string}> = {
   pending:          { label:"معلّق",       color:"bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
   assigned:         { label:"مسنَد لك",    color:"bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   picked_up:        { label:"تم الاستلام", color:"bg-indigo-100 text-indigo-700" },
-  out_for_delivery: { label:"في الطريق",  color:"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  delivered:        { label:"تم التوصيل", color:"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-  failed:           { label:"فشل",         color:"bg-red-100 text-red-700" },
-  returned:         { label:"مُرتجَع",     color:"bg-purple-100 text-purple-700" },
+  out_for_delivery: { label:"في الطريق",   color:"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  delivered:        { label:"تم التوصيل",  color:"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  failed:           { label:"فشل",          color:"bg-red-100 text-red-700" },
+  returned:         { label:"مُرتجَع",      color:"bg-purple-100 text-purple-700" },
 };
 
+interface OrderSnap {
+  order_number:     string;
+  total_amount:     number;
+  currency:         string;
+  address_snapshot: {
+    full_name:   string;
+    phone:       string;
+    governorate: string;
+    district?:   string;
+    street?:     string;
+  };
+}
+
+// Supabase يُعيد joined rows كـ array أو object — نعالج الحالتين
+type OrderField = OrderSnap | OrderSnap[] | null;
+
 interface Shipment {
-  id: string;
+  id:              string;
   tracking_number: string;
-  status: string;
-  carrier_notes: string | null;
-  created_at: string;
-  orders: {
-    order_number: string;
-    total_amount: number;
-    currency: string;
-    address_snapshot: {
-      full_name: string;
-      phone: string;
-      governorate: string;
-      district: string | null;
-      street: string | null;
-    };
-  } | null;
+  status:          string;
+  carrier_notes:   string | null;
+  created_at:      string;
+  orders:          OrderField;
+}
+
+function getOrderData(orders: OrderField): OrderSnap | null {
+  if (!orders) return null;
+  return Array.isArray(orders) ? orders[0] ?? null : orders;
 }
 
 export default function DriverDashboard() {
   const router = useRouter();
-  const [shipments, setShipments] = useState<Shipment[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [shipments,  setShipments]  = useState<Shipment[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [driverName, setDriverName] = useState("المندوب");
-  const [filter,    setFilter]    = useState<"active"|"done">("active");
+  const [filter,     setFilter]     = useState<"active"|"done">("active");
 
   const load = useCallback(async () => {
     setLoading(true);
     const { data: { user } } = await sb.auth.getUser();
     if (!user) { router.replace("/driver/login"); return; }
 
-    // جلب اسم المندوب
     const { data: profile } = await sb.from("profiles").select("full_name").eq("id", user.id).single();
     if (profile?.full_name) setDriverName(profile.full_name);
 
-    // جلب الشحنات المسندة لهذا المندوب
     const { data } = await sb
       .from("shipments")
       .select(`
@@ -66,7 +74,7 @@ export default function DriverDashboard() {
       .eq("driver_id", user.id)
       .order("created_at", { ascending: false });
 
-    setShipments((data as Shipment[]) ?? []);
+    setShipments((data as unknown as Shipment[]) ?? []);
     setLoading(false);
   }, [router]);
 
@@ -78,12 +86,11 @@ export default function DriverDashboard() {
   };
 
   const active = shipments.filter(s => !["delivered","failed","returned"].includes(s.status));
-  const done   = shipments.filter(s => ["delivered","failed","returned"].includes(s.status));
+  const done   = shipments.filter(s =>  ["delivered","failed","returned"].includes(s.status));
   const shown  = filter === "active" ? active : done;
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)]" dir="rtl">
-      {/* شريط علوي */}
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-[var(--border)] bg-[var(--bg-card)] px-4 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-700 text-white">
@@ -105,12 +112,11 @@ export default function DriverDashboard() {
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
-        {/* إحصاء سريع */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label:"إجمالي",     value:shipments.length, color:"text-[var(--text-1)]" },
-            { label:"نشطة",       value:active.length,    color:"text-amber-600"       },
-            { label:"مكتملة",     value:done.length,      color:"text-green-600"       },
+            { label:"إجمالي", value:shipments.length, color:"text-[var(--text-1)]" },
+            { label:"نشطة",   value:active.length,    color:"text-amber-600"       },
+            { label:"مكتملة", value:done.length,      color:"text-green-600"       },
           ].map(({ label, value, color }) => (
             <div key={label} className="card-base p-3 text-center">
               <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -119,7 +125,6 @@ export default function DriverDashboard() {
           ))}
         </div>
 
-        {/* فلاتر */}
         <div className="grid grid-cols-2 gap-2 rounded-xl border border-[var(--border)] p-1">
           {[
             { v:"active", l:`نشطة (${active.length})` },
@@ -132,7 +137,6 @@ export default function DriverDashboard() {
           ))}
         </div>
 
-        {/* الشحنات */}
         {loading ? (
           <div className="space-y-3">{[1,2,3].map(i=><div key={i} className="skeleton h-28 w-full rounded-xl"/>)}</div>
         ) : shown.length === 0 ? (
@@ -145,23 +149,19 @@ export default function DriverDashboard() {
         ) : (
           <div className="space-y-3">
             {shown.map(shipment => {
-              const addr = shipment.orders?.address_snapshot;
+              const orderData = getOrderData(shipment.orders);
+              const addr = orderData?.address_snapshot;
               const st   = STATUS_STYLE[shipment.status] ?? { label:shipment.status, color:"bg-gray-100 text-gray-600" };
               return (
                 <Link key={shipment.id} href={`/driver/orders/${shipment.id}`}
                   className="card-base block p-4 hover:border-brand-300 transition-all active:scale-[0.99]">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <p className="font-bold text-[var(--text-1)]" dir="ltr">
-                        #{shipment.orders?.order_number}
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5" dir="ltr">
-                        {shipment.tracking_number}
-                      </p>
+                      <p className="font-bold text-[var(--text-1)]" dir="ltr">#{orderData?.order_number}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5" dir="ltr">{shipment.tracking_number}</p>
                     </div>
                     <span className={`badge text-xs px-2.5 py-1 ${st.color}`}>{st.label}</span>
                   </div>
-
                   {addr && (
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
@@ -176,14 +176,13 @@ export default function DriverDashboard() {
                       </div>
                     </div>
                   )}
-
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                       <Clock size={11}/>
                       {new Date(shipment.created_at).toLocaleDateString("ar-YE")}
                     </span>
                     <span className="text-sm font-bold text-brand-700 dark:text-accent-400">
-                      {new Intl.NumberFormat("ar-YE").format(shipment.orders?.total_amount ?? 0)} ﷼
+                      {new Intl.NumberFormat("ar-YE").format(orderData?.total_amount ?? 0)} ﷼
                     </span>
                   </div>
                 </Link>
