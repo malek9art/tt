@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
-import { Phone, Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Loader2, Eye, EyeOff, Truck } from "lucide-react";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,33 +18,51 @@ export default function DriverLoginPage() {
   const [error,    setError]    = useState("");
 
   const handleLogin = async () => {
-    if (!email || !password) { setError("أدخل بيانات الدخول"); return; }
+    if (!email.trim() || !password.trim()) {
+      setError("أدخل البريد وكلمة المرور"); return;
+    }
     setLoading(true); setError("");
 
     const { data, error: err } = await sb.auth.signInWithPassword({
       email: email.trim().toLowerCase(), password,
     });
-    if (err || !data.user) { setError("بيانات الدخول غير صحيحة"); setLoading(false); return; }
 
-    // تحقق من وجود سجل في drivers
-    const { data: driver } = await sb.from("drivers").select("id").eq("id", data.user.id).single();
-    if (!driver) {
-      await sb.auth.signOut();
-      setError("هذا الحساب ليس حساب مندوب — تواصل مع الإدارة");
+    if (err || !data.user) {
+      setError("بيانات الدخول غير صحيحة");
       setLoading(false); return;
     }
+
+    // التحقق من أن المستخدم منديب
+    const authed = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${data.session!.access_token}` } } }
+    );
+
+    const { data: isDriver } = await authed.rpc("has_role", {
+      _user_id: data.user.id, _role: "driver",
+    });
+
+    if (!isDriver) {
+      await sb.auth.signOut();
+      setError("هذا الحساب ليس حساب مندوب توصيل");
+      setLoading(false); return;
+    }
+
     router.replace("/driver");
   };
 
-  const iCls = "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
+  const iCls = "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--bg-page)] p-4" dir="rtl">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-700 text-white text-2xl font-bold shadow-lg">أ</div>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand-700 text-white shadow-lg">
+            <Truck size={28}/>
+          </div>
           <h1 className="text-xl font-bold text-[var(--text-1)]">بوابة المناديب</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">مركز الأحمدي للجوالات</p>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">مركز الأحمدي للجوالات</p>
         </div>
 
         <div className="card-base p-6 space-y-4">
@@ -53,32 +71,38 @@ export default function DriverLoginPage() {
               ⚠ {error}
             </div>
           )}
-          <div className="relative">
-            <Phone size={16} className="absolute top-3.5 end-4 text-[var(--text-muted)]"/>
-            <input type="email" dir="ltr" placeholder="البريد الإلكتروني"
-              value={email} onChange={e=>{setEmail(e.target.value);setError("");}}
-              onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-              className={iCls+" pe-10"} autoComplete="email"/>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">البريد الإلكتروني</label>
+            <div className="relative">
+              <Mail size={15} className="absolute top-3 end-3 text-[var(--text-muted)] pointer-events-none"/>
+              <input type="email" dir="ltr" placeholder="driver@ahmadi.ye" value={email}
+                onChange={e=>{setEmail(e.target.value);setError("");}}
+                onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                className={iCls+" pe-9"} autoComplete="email" autoFocus/>
+            </div>
           </div>
-          <div className="relative">
-            <Lock size={16} className="absolute top-3.5 end-4 text-[var(--text-muted)]"/>
-            <input type={showPw?"text":"password"} dir="ltr" placeholder="كلمة المرور"
-              value={password} onChange={e=>{setPassword(e.target.value);setError("");}}
-              onKeyDown={e=>e.key==="Enter"&&handleLogin()}
-              className={iCls+" pe-10 ps-12"} autoComplete="current-password"/>
-            <button type="button" onClick={()=>setShowPw(!showPw)}
-              className="absolute top-3 start-4 text-[var(--text-muted)] hover:text-[var(--text-1)] transition-colors">
-              {showPw?<EyeOff size={16}/>:<Eye size={16}/>}
-            </button>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">كلمة المرور</label>
+            <div className="relative">
+              <Lock size={15} className="absolute top-3 end-3 text-[var(--text-muted)] pointer-events-none"/>
+              <input type={showPw?"text":"password"} dir="ltr" placeholder="••••••••" value={password}
+                onChange={e=>{setPassword(e.target.value);setError("");}}
+                onKeyDown={e=>e.key==="Enter"&&handleLogin()}
+                className={iCls+" pe-9 ps-10"} autoComplete="current-password"/>
+              <button type="button" onClick={()=>setShowPw(!showPw)}
+                className="absolute top-2.5 start-3 text-[var(--text-muted)] hover:text-[var(--text-1)] transition-colors">
+                {showPw ? <EyeOff size={16}/> : <Eye size={16}/>}
+              </button>
+            </div>
           </div>
+
           <button onClick={handleLogin} disabled={loading||!email||!password}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-700 py-3 text-sm font-bold text-white hover:bg-brand-800 active:scale-[0.98] disabled:opacity-50 transition-all">
-            {loading?<><Loader2 size={16} className="animate-spin"/> جارٍ الدخول...</>:"دخول"}
+            className="btn-primary w-full justify-center">
+            {loading ? <><Loader2 size={16} className="animate-spin"/> جارٍ الدخول...</> : "دخول بوابة التوصيل"}
           </button>
         </div>
-        <p className="text-center text-xs text-[var(--text-muted)] mt-4">
-          للحصول على حساب تواصل مع المدير
-        </p>
       </div>
     </div>
   );
