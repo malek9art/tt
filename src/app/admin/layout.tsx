@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase-server";
 import { createSupabaseServer } from "@/lib/supabase-server";
@@ -15,6 +16,16 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // قراءة المسار الحالي
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") ||
+    headersList.get("x-invoke-path") || "";
+
+  // صفحة login لا تحتاج تحقق — أرجع children مباشرة
+  if (pathname.includes("/admin/login")) {
+    return <>{children}</>;
+  }
+
   // تحقق من الجلسة على مستوى السيرفر
   const user = await getCurrentUser();
 
