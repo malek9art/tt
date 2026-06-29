@@ -13,13 +13,16 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// دائماً الدومين الصحيح — ليس localhost
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://ahmadi-store.vercel.app";
+
 type Step = "input" | "sent" | "done";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  expired_link:  "انتهت صلاحية الرابط — أرسل رابطاً جديداً",
-  auth_failed:   "فشل التحقق — حاول مجدداً",
-  missing_code:  "رابط غير صالح — أرسل رابطاً جديداً",
-  server_error:  "خطأ في الخادم — حاول بعد قليل",
+  expired_link: "انتهت صلاحية الرابط — أرسل رابطاً جديداً",
+  auth_failed:  "فشل التحقق — حاول مجدداً",
+  missing_code: "رابط غير صالح — أرسل رابطاً جديداً",
+  server_error: "خطأ في الخادم — حاول بعد قليل",
 };
 
 export default function LoginForm() {
@@ -48,16 +51,22 @@ export default function LoginForm() {
     setLoading(true);
     setError("");
 
+    const callbackUrl = `${APP_URL}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`;
+
     const { error: err } = await supabase.auth.signInWithOtp({
-      email,
+      email: email.trim().toLowerCase(),
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+        emailRedirectTo: callbackUrl,
         shouldCreateUser: false,
       },
     });
 
     if (err) {
-      setError("تعذّر الإرسال — تحقق من البريد وحاول مجدداً");
+      if (err.message.includes("not found") || err.message.includes("User not found")) {
+        setError("هذا البريد غير مسجّل — هل تريد إنشاء حساب جديد؟");
+      } else {
+        setError("تعذّر الإرسال — تحقق من البريد وحاول مجدداً");
+      }
     } else {
       setStep("sent");
     }
@@ -71,7 +80,6 @@ export default function LoginForm() {
       <Header />
       <div className="container-main flex min-h-[80vh] items-center justify-center py-12">
         <div className="w-full max-w-md">
-          {/* الشعار */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand-700 text-3xl text-white shadow-lg">أ</div>
             <h1 className="text-2xl font-bold text-[var(--text-1)]">
@@ -85,8 +93,6 @@ export default function LoginForm() {
           </div>
 
           <div className="card-base p-6">
-
-            {/* ===== نجاح الدخول ===== */}
             {step === "done" && (
               <div className="py-8 text-center">
                 <CheckCircle size={56} className="mx-auto mb-4 text-green-500" />
@@ -94,7 +100,6 @@ export default function LoginForm() {
               </div>
             )}
 
-            {/* ===== تم الإرسال ===== */}
             {step === "sent" && (
               <div className="space-y-5">
                 <div className="text-center">
@@ -103,35 +108,24 @@ export default function LoginForm() {
                   </div>
                   <h2 className="font-bold text-[var(--text-1)] mb-2">تم إرسال رابط الدخول!</h2>
                   <p className="text-sm text-[var(--text-muted)]">
-                    أرسلنا رابطاً إلى <strong className="text-[var(--text-1)]">{email}</strong>
+                    إلى <strong className="text-[var(--text-1)]">{email}</strong>
                   </p>
                 </div>
-
-                {/* خطوات واضحة */}
                 <div className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-4 space-y-2">
                   <p className="text-sm font-semibold text-brand-700 dark:text-accent-400">📧 خطوتان فقط:</p>
                   <p className="text-sm text-[var(--text-2)]">① افتح تطبيق البريد الإلكتروني</p>
                   <p className="text-sm text-[var(--text-2)]">② اضغط زر <strong>تسجيل الدخول</strong> في الرسالة</p>
                 </div>
-
-                {/* تنبيه مهم */}
-                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3">
-                  <p className="text-xs text-amber-700 dark:text-amber-300 font-medium mb-1">⚠ مهم</p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    افتح الرابط من نفس المتصفح الذي طلبت الدخول منه.
-                    الرابط صالح لمدة ساعة واحدة.
-                  </p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-xs text-amber-700 dark:text-amber-300">
+                  ⚠ افتح الرابط من <strong>Chrome</strong> أو متصفح عادي — ليس من داخل تطبيق Gmail.
+                  الرابط صالح لساعة واحدة.
                 </div>
-
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => { setStep("input"); setError(""); }}
+                  <button onClick={() => { setStep("input"); setError(""); }}
                     className="flex-1 btn-ghost border border-[var(--border)] text-sm">
                     تغيير البريد
                   </button>
-                  <button
-                    onClick={handleSend}
-                    disabled={loading}
+                  <button onClick={handleSend} disabled={loading}
                     className="flex-1 btn-primary text-sm justify-center">
                     {loading ? <Loader2 size={15} className="animate-spin" /> : "إعادة إرسال"}
                   </button>
@@ -139,47 +133,39 @@ export default function LoginForm() {
               </div>
             )}
 
-            {/* ===== إدخال البريد ===== */}
             {step === "input" && (
               <div className="space-y-4">
-                {/* رسالة خطأ من URL */}
                 {error && (
                   <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
                     ⚠ {error}
+                    {error.includes("غير مسجّل") && (
+                      <Link href="/register" className="block mt-1 text-brand-700 font-medium hover:underline">
+                        إنشاء حساب جديد ←
+                      </Link>
+                    )}
                   </div>
                 )}
-
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">
-                    البريد الإلكتروني
-                  </label>
+                  <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">البريد الإلكتروني</label>
                   <div className="relative">
                     <Mail size={15} className="absolute top-3 end-3 text-[var(--text-muted)]" />
-                    <input
-                      type="email"
-                      dir="ltr"
-                      placeholder="example@gmail.com"
+                    <input type="email" dir="ltr" placeholder="example@gmail.com"
                       value={email}
                       onChange={e => { setEmail(e.target.value); setError(""); }}
                       onKeyDown={e => e.key === "Enter" && handleSend()}
                       className={iCls + " pe-9"}
-                      autoComplete="email"
-                    />
+                      autoComplete="email" />
                   </div>
                 </div>
-
-                <button
-                  onClick={handleSend}
-                  disabled={loading || !email}
+                <button onClick={handleSend} disabled={loading || !email}
                   className="btn-primary w-full justify-center">
                   {loading
                     ? <><Loader2 size={16} className="animate-spin" /> جارٍ الإرسال...</>
                     : <>إرسال رابط الدخول <ArrowLeft size={16} /></>}
                 </button>
-
                 <div className="flex items-center gap-2 rounded-lg bg-[var(--bg-page)] border border-[var(--border)] p-3 text-xs text-[var(--text-muted)]">
                   <ShieldCheck size={14} className="shrink-0 text-brand-700" />
-                  ستصلك رسالة — اضغط الرابط للدخول فوراً. لا كلمة مرور مطلوبة.
+                  ستصلك رسالة — اضغط الرابط للدخول. لا كلمة مرور مطلوبة.
                 </div>
               </div>
             )}
@@ -188,9 +174,7 @@ export default function LoginForm() {
           {step === "input" && (
             <p className="mt-4 text-center text-sm text-[var(--text-muted)]">
               ليس لديك حساب؟{" "}
-              <Link href="/register" className="font-medium text-brand-700 hover:text-brand-900 transition-colors">
-                سجّل الآن
-              </Link>
+              <Link href="/register" className="font-medium text-brand-700 hover:text-brand-900 transition-colors">سجّل الآن</Link>
             </p>
           )}
         </div>
