@@ -8,18 +8,32 @@ const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+interface ProductVariantRow {
+  sku:        string | null;
+  attributes: Record<string, string>;
+  products:   { name_ar: string; sku: string | null } | { name_ar: string; sku: string | null }[] | null;
+}
+
 interface InventoryItem {
-  id: string;
-  quantity: number;
+  id:                string;
+  quantity:          number;
   reserved_quantity: number;
-  reorder_level: number;
-  reorder_quantity: number;
-  location: string | null;
-  product_variants: {
-    sku: string | null;
-    attributes: Record<string,string>;
-    products: { name_ar: string; sku: string | null } | null;
-  } | null;
+  reorder_level:     number;
+  reorder_quantity:  number;
+  location:          string | null;
+  product_variants:  ProductVariantRow | ProductVariantRow[] | null;
+}
+
+function getVariant(item: InventoryItem): ProductVariantRow | null {
+  if (!item.product_variants) return null;
+  return Array.isArray(item.product_variants)
+    ? item.product_variants[0] ?? null
+    : item.product_variants;
+}
+
+function getProduct(pv: ProductVariantRow | null) {
+  if (!pv?.products) return null;
+  return Array.isArray(pv.products) ? pv.products[0] ?? null : pv.products;
 }
 
 export default function InventoryPage() {
@@ -33,13 +47,10 @@ export default function InventoryPage() {
       .from("inventory")
       .select(`
         id, quantity, reserved_quantity, reorder_level, reorder_quantity, location,
-        product_variants(
-          sku, attributes,
-          products(name_ar, sku)
-        )
+        product_variants(sku, attributes, products(name_ar, sku))
       `)
       .order("quantity", { ascending: true });
-    setItems(data ?? []);
+    setItems((data as InventoryItem[]) ?? []);
     setLoading(false);
   }, []);
 
@@ -75,7 +86,6 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {/* بطاقات الإحصاء */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label:"إجمالي الأصناف", value:stats.total,   color:"bg-blue-50 dark:bg-blue-900/20",   text:"text-blue-600",   icon:Package },
@@ -91,7 +101,6 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      {/* فلاتر */}
       <div className="flex gap-2">
         {[
           { v:"all", l:"الكل" },
@@ -105,7 +114,6 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      {/* الجدول */}
       <div className="card-base overflow-hidden">
         {loading ? (
           <div className="p-5 space-y-3">
@@ -128,10 +136,11 @@ export default function InventoryPage() {
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {filtered.map(item => {
-                  const pv = item.product_variants;
-                  const name = pv?.products?.name_ar ?? "—";
-                  const sku  = pv?.sku ?? pv?.products?.sku ?? "—";
-                  const avail = item.quantity - item.reserved_quantity;
+                  const pv   = getVariant(item);
+                  const prod = getProduct(pv);
+                  const name = prod?.name_ar ?? "—";
+                  const sku  = pv?.sku ?? prod?.sku ?? "—";
+                  const avail  = item.quantity - item.reserved_quantity;
                   const isOut  = item.quantity === 0;
                   const isLow  = !isOut && item.quantity <= item.reorder_level;
                   return (
