@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-const PROTECTED  = ["/account", "/checkout"];
-const ADMIN_ONLY = ["/admin"];
-
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
 
-  // السماح لصفحة login الإدارة دائماً
-  if (pathname === "/admin/login") {
+  // ===== استثناءات: لا تحتاج تحقق =====
+  const publicPaths = [
+    "/admin/login",
+    "/login",
+    "/register",
+    "/auth/callback",
+    "/",
+  ];
+
+  // المسارات العامة تمر مباشرة
+  if (publicPaths.some(p => pathname === p || pathname.startsWith("/products"))) {
     return response;
   }
 
+  // إنشاء Supabase client
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -30,15 +37,19 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // حماية صفحات العملاء
-  if (PROTECTED.some(r => pathname.startsWith(r)) && !user) {
-    const url = new URL("/login", request.url);
-    url.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(url);
+  // ===== حماية صفحات العملاء =====
+  if (pathname.startsWith("/account") || pathname.startsWith("/checkout")) {
+    if (!user) {
+      const url = new URL("/login", request.url);
+      url.searchParams.set("redirectTo", pathname);
+      return NextResponse.redirect(url);
+    }
+    return response;
   }
 
-  // حماية لوحة الإدارة
-  if (ADMIN_ONLY.some(r => pathname.startsWith(r))) {
+  // ===== حماية لوحة الإدارة =====
+  // /admin/login مُستثنى في الأعلى
+  if (pathname.startsWith("/admin")) {
     if (!user) {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }
@@ -50,12 +61,13 @@ export async function middleware(request: NextRequest) {
     });
 
     if (!isAdmin) {
-      // تسجيل خروج وإعادة توجيه
       await supabase.auth.signOut();
       return NextResponse.redirect(
         new URL("/admin/login?error=unauthorized", request.url)
       );
     }
+
+    return response;
   }
 
   return response;
