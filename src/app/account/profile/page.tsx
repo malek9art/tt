@@ -1,8 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { useAuthStore } from "@/store/authStore";
-import { Save, Loader2, CheckCircle, User } from "lucide-react";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import Link from "next/link";
+import { User, Phone, Mail, Save, Loader2, CheckCircle, ChevronLeft } from "lucide-react";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,79 +12,123 @@ const sb = createBrowserClient(
 );
 
 export default function ProfilePage() {
-  const { user, profile, fetchProfile } = useAuthStore();
-  const [form, setForm]   = useState({ full_name:"", phone:"" });
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
-  const [error,  setError]  = useState("");
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [error,    setError]    = useState("");
+  const [userId,   setUserId]   = useState<string|null>(null);
+  const [form, setForm] = useState({
+    full_name: "", phone: "", email: "",
+  });
 
   useEffect(() => {
-    if (profile) setForm({ full_name: profile.full_name ?? "", phone: profile.phone ?? "" });
-  }, [profile]);
+    sb.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+      setForm(f => ({ ...f, email: user.email ?? "" }));
+      sb.from("profiles").select("full_name, phone").eq("id", user.id).single()
+        .then(({ data }) => {
+          if (data) setForm(f => ({ ...f,
+            full_name: data.full_name ?? "",
+            phone:     data.phone     ?? "",
+          }));
+          setLoading(false);
+        });
+    });
+  }, []);
 
   const handleSave = async () => {
-    if (!user) return;
-    if (!form.full_name.trim()) { setError("الاسم إلزامي"); return; }
-    setSaving(true); setError("");
-    const { error: err } = await sb
-      .from("profiles")
-      .update({ full_name: form.full_name.trim(), phone: form.phone.trim() || null })
-      .eq("id", user.id);
-    if (err) { setError("حدث خطأ أثناء الحفظ"); }
-    else { setSaved(true); fetchProfile(user.id); setTimeout(() => setSaved(false), 3000); }
+    if (!userId) return;
+    setSaving(true); setError(""); setSaved(false);
+    const { error: dbErr } = await sb.from("profiles")
+      .update({ full_name: form.full_name.trim(), phone: form.phone.trim() })
+      .eq("id", userId);
+    if (dbErr) setError(dbErr.message);
+    else { setSaved(true); setTimeout(() => setSaved(false), 3000); }
     setSaving(false);
   };
 
   const iCls = "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-bold text-[var(--text-1)]">الملف الشخصي</h1>
-
-      <div className="card-base p-6 space-y-5">
-        {/* الصورة الرمزية */}
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-accent-400 text-2xl font-bold">
-            {form.full_name?.[0] ?? <User size={24}/>}
-          </div>
+    <div className="min-h-screen">
+      <Header />
+      <div className="container-main py-8 max-w-xl">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/account" className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
+            <ChevronLeft size={16}/>
+          </Link>
           <div>
-            <p className="font-semibold text-[var(--text-1)]">{form.full_name || "اسم المستخدم"}</p>
-            <p className="text-sm text-[var(--text-muted)]">{user?.email}</p>
+            <h1 className="text-xl font-bold text-[var(--text-1)]">الملف الشخصي</h1>
+            <p className="text-xs text-[var(--text-muted)]">تعديل بياناتك الشخصية</p>
           </div>
         </div>
 
-        <div className="border-t border-[var(--border)] pt-5 space-y-4">
-          {error && (
-            <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 p-3 text-sm text-red-600">
-              ⚠ {error}
+        {loading ? (
+          <div className="space-y-3">
+            {[1,2,3].map(i=><div key={i} className="skeleton h-12 w-full rounded-lg"/>)}
+          </div>
+        ) : (
+          <div className="card-base p-6 space-y-5">
+            {/* الصورة الشخصية */}
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-700 text-2xl font-bold text-white">
+                {form.full_name?.[0] ?? "م"}
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--text-1)]">{form.full_name || "مستخدم"}</p>
+                <p className="text-sm text-[var(--text-muted)]">{form.email}</p>
+              </div>
             </div>
-          )}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">الاسم الكامل *</label>
-            <input type="text" value={form.full_name}
-              onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
-              className={iCls} placeholder="أدخل اسمك الكامل"/>
+
+            <div className="border-t border-[var(--border)] pt-5 space-y-4">
+              {error && (
+                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 p-3 text-sm text-red-600">
+                  ⚠ {error}
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">الاسم الكامل</label>
+                <div className="relative">
+                  <User size={15} className="absolute top-3 end-3 text-[var(--text-muted)]"/>
+                  <input type="text" placeholder="محمد أحمد" value={form.full_name}
+                    onChange={e=>setForm(f=>({...f,full_name:e.target.value}))}
+                    className={iCls+" pe-9"}/>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">رقم الهاتف</label>
+                <div className="relative">
+                  <Phone size={15} className="absolute top-3 end-3 text-[var(--text-muted)]"/>
+                  <input type="tel" dir="ltr" placeholder="+967 7XX XXX XXX" value={form.phone}
+                    onChange={e=>setForm(f=>({...f,phone:e.target.value}))}
+                    className={iCls+" pe-9"}/>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">البريد الإلكتروني</label>
+                <div className="relative">
+                  <Mail size={15} className="absolute top-3 end-3 text-[var(--text-muted)]"/>
+                  <input type="email" dir="ltr" value={form.email} disabled
+                    className={iCls+" pe-9 opacity-60 cursor-not-allowed"}/>
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">لا يمكن تغيير البريد الإلكتروني</p>
+              </div>
+
+              <button onClick={handleSave} disabled={saving}
+                className={`w-full justify-center ${saved ? "btn-ghost border border-green-400 text-green-600" : "btn-primary"}`}>
+                {saving  ? <><Loader2 size={16} className="animate-spin"/> جارٍ الحفظ...</>
+                 : saved ? <><CheckCircle size={16}/> تم الحفظ بنجاح</>
+                 :         <><Save size={16}/> حفظ التعديلات</>}
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">رقم الهاتف</label>
-            <input type="tel" dir="ltr" value={form.phone}
-              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              className={iCls} placeholder="+967 7XX XXX XXX"/>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">البريد الإلكتروني</label>
-            <input type="email" dir="ltr" value={user?.email ?? ""}
-              disabled className={iCls + " opacity-60 cursor-not-allowed"}/>
-            <p className="text-xs text-[var(--text-muted)] mt-1">لا يمكن تغيير البريد الإلكتروني</p>
-          </div>
-          <button onClick={handleSave} disabled={saving}
-            className={`w-full justify-center ${saved ? "btn-ghost border border-green-400 text-green-600" : "btn-primary"}`}>
-            {saving  ? <><Loader2 size={15} className="animate-spin"/> حفظ...</>
-             : saved  ? <><CheckCircle size={15}/> تم الحفظ</>
-             :          <><Save size={15}/> حفظ التغييرات</>}
-          </button>
-        </div>
+        )}
       </div>
+      <Footer />
     </div>
   );
 }
