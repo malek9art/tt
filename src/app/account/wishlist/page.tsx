@@ -14,16 +14,15 @@ const sb = createBrowserClient(
 
 const FALLBACK = "https://placehold.co/300x300/09444C/FFE100?text=%F0%9F%93%B1";
 
-interface WishItem {
-  id: string;
-  products: {
-    id: string; name_ar: string; slug: string; base_price: number; currency: string;
-    product_images: { url:string; is_primary:boolean }[];
-  } | null;
+interface WProduct {
+  id: string; name_ar: string; slug: string;
+  base_price: number; currency: string;
+  product_images: { url: string; is_primary: boolean }[];
 }
+interface WishItem { id: string; products: WProduct | null; }
 
 export default function WishlistPage() {
-  const { user }   = useAuthStore();
+  const { user }    = useAuthStore();
   const { addItem } = useCartStore();
   const [items,   setItems]   = useState<WishItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +34,15 @@ export default function WishlistPage() {
       .select("id, products(id, name_ar, slug, base_price, currency, product_images(url, is_primary))")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-    setItems(data as WishItem[] ?? []);
+
+    // نحوّل كل عنصر يدوياً لتجنب TypeScript error
+    const mapped: WishItem[] = (data ?? []).map((row: unknown) => {
+      const r = row as { id: string; products: unknown };
+      const pArr = Array.isArray(r.products) ? r.products : [];
+      const p    = pArr[0] as WProduct | undefined;
+      return { id: r.id, products: p ?? null };
+    });
+    setItems(mapped);
     setLoading(false);
   };
 
@@ -46,11 +53,6 @@ export default function WishlistPage() {
     setItems(prev => prev.filter(x => x.id !== id));
   };
 
-  const handleAddToCart = async (item: WishItem) => {
-    if (!item.products) return;
-    addItem(item.products as Parameters<typeof addItem>[0], undefined, 1);
-  };
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -59,7 +61,7 @@ export default function WishlistPage() {
       </div>
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {[1,2,3].map(i=><div key={i} className="skeleton h-56 rounded-xl"/>)}
         </div>
       ) : items.length === 0 ? (
@@ -70,11 +72,12 @@ export default function WishlistPage() {
           <Link href="/products" className="btn-primary">تصفح المنتجات</Link>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {items.map(item => {
             const p = item.products;
             if (!p) return null;
-            const img = p.product_images?.find(i => i.is_primary)?.url ?? p.product_images?.[0]?.url ?? FALLBACK;
+            const img = p.product_images?.find(i => i.is_primary)?.url
+              ?? p.product_images?.[0]?.url ?? FALLBACK;
             return (
               <div key={item.id} className="card-base overflow-hidden group">
                 <Link href={`/products/${p.slug}`} className="block relative aspect-square overflow-hidden">
@@ -83,13 +86,16 @@ export default function WishlistPage() {
                 </Link>
                 <div className="p-3">
                   <Link href={`/products/${p.slug}`}>
-                    <p className="font-semibold text-sm text-[var(--text-1)] line-clamp-2 hover:text-brand-700 transition-colors">{p.name_ar}</p>
+                    <p className="font-semibold text-sm text-[var(--text-1)] line-clamp-2 hover:text-brand-700 transition-colors">
+                      {p.name_ar}
+                    </p>
                   </Link>
                   <p className="text-base font-bold text-brand-700 dark:text-accent-400 mt-1">
                     {new Intl.NumberFormat("ar-YE").format(p.base_price)} ﷼
                   </p>
                   <div className="flex gap-2 mt-3">
-                    <button onClick={() => handleAddToCart(item)}
+                    <button
+                      onClick={() => addItem(p as Parameters<typeof addItem>[0], undefined, 1)}
                       className="btn-primary flex-1 justify-center text-sm py-2 gap-1.5">
                       <ShoppingCart size={14}/> أضف للسلة
                     </button>
