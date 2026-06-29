@@ -1,152 +1,225 @@
 "use client";
 import { useEffect, useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
-import { TrendingUp, ShoppingBag, Users, Package } from "lucide-react";
+import {
+  TrendingUp, ShoppingBag, Users, Package,
+  RefreshCw, Calendar
+} from "lucide-react";
 
-const sb = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+interface DaySale { date: string; revenue: number; orders: number; }
+interface TopProduct { name: string; qty: number; revenue: number; }
+interface Summary {
+  totalRevenue: number; totalOrders: number;
+  totalProducts: number; newCustomers: number;
+}
 
-interface DailyStat { day: string; orders: number; revenue: number; }
+const DAY_OPTIONS = [
+  { v:7,  l:"آخر 7 أيام"  },
+  { v:14, l:"آخر 14 يوم" },
+  { v:30, l:"آخر 30 يوم" },
+];
+
+const ORDER_STATUS_AR: Record<string,string> = {
+  pending:"معلّق", confirmed:"مؤكد", processing:"قيد التجهيز",
+  ready_for_delivery:"جاهز", out_for_delivery:"في الطريق",
+  delivered:"تم التوصيل", completed:"مكتمل",
+  cancelled:"ملغي", returned:"مُرتجَع",
+};
+
+export const metadata = { title: "التحليلات" };
 
 export default function AnalyticsPage() {
-  const [stats,  setStats]  = useState({ orders:0, revenue:0, customers:0, products:0 });
-  const [daily,  setDaily]  = useState<DailyStat[]>([]);
-  const [topProd,setTopProd]= useState<{name:string; count:number}[]>([]);
-  const [loading,setLoading]= useState(true);
+  const [days,        setDays]        = useState(7);
+  const [summary,     setSummary]     = useState<Summary|null>(null);
+  const [dailySales,  setDailySales]  = useState<DaySale[]>([]);
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [byStatus,    setByStatus]    = useState<Record<string,number>>({});
+  const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      sb.from("orders").select("total_amount, created_at, status"),
-      sb.from("profiles").select("id", { count:"exact", head:true }),
-      sb.from("products").select("id", { count:"exact", head:true }).eq("status","published"),
-      sb.from("order_items").select("name_snapshot, quantity"),
-    ]).then(([ordRes, custRes, prodRes, itemsRes]) => {
-      const orders = ordRes.data ?? [];
-      const revenue = orders.reduce((s,o) => s + Number(o.total_amount), 0);
+    setLoading(true);
+    fetch(`/api/admin/analytics?days=${days}`)
+      .then(r => r.json())
+      .then(d => {
+        setSummary(d.summary);
+        setDailySales(d.dailySales ?? []);
+        setTopProducts(d.topProducts ?? []);
+        setByStatus(d.ordersByStatus ?? {});
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [days]);
 
-      // مبيعات آخر 7 أيام
-      const days: Record<string, DailyStat> = {};
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const key = d.toISOString().split("T")[0];
-        days[key] = { day: d.toLocaleDateString("ar-YE", { weekday:"short", day:"numeric" }), orders:0, revenue:0 };
-      }
-      orders.forEach(o => {
-        const key = o.created_at?.split("T")[0];
-        if (key && days[key]) {
-          days[key].orders++;
-          days[key].revenue += Number(o.total_amount);
-        }
-      });
-
-      // أكثر المنتجات مبيعاً
-      const counter: Record<string,number> = {};
-      (itemsRes.data ?? []).forEach(i => {
-        counter[i.name_snapshot] = (counter[i.name_snapshot] ?? 0) + i.quantity;
-      });
-      const top = Object.entries(counter)
-        .sort((a,b) => b[1]-a[1])
-        .slice(0,5)
-        .map(([name,count]) => ({ name, count }));
-
-      setStats({ orders: orders.length, revenue, customers: custRes.count??0, products: prodRes.count??0 });
-      setDaily(Object.values(days));
-      setTopProd(top);
-      setLoading(false);
-    });
-  }, []);
-
-  const fmt = (n: number) =>
-    new Intl.NumberFormat("ar-YE", { maximumFractionDigits:0 }).format(n) + " ﷼";
-
-  const maxRev = Math.max(...daily.map(d => d.revenue), 1);
+  const maxRevenue = Math.max(...dailySales.map(d => d.revenue), 1);
+  const formatYER  = (n: number) =>
+    new Intl.NumberFormat("ar-YE", { maximumFractionDigits: 0 }).format(n) + " ﷼";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">التحليلات</h1>
-        <p className="text-sm text-[var(--text-muted)]">نظرة على أداء المتجر</p>
+      {/* رأس الصفحة */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-1)]">التحليلات</h1>
+          <p className="text-sm text-[var(--text-muted)]">نظرة عامة على أداء المتجر</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <Calendar size={15} className="text-[var(--text-muted)]"/>
+          {DAY_OPTIONS.map(o => (
+            <button key={o.v} onClick={() => setDays(o.v)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                days === o.v ? "bg-brand-700 text-white" : "border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300"
+              }`}>{o.l}</button>
+          ))}
+        </div>
       </div>
 
-      {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[1,2,3,4].map(i => <div key={i} className="skeleton h-28 rounded-xl" />)}
-        </div>
-      ) : (
-        <>
-          {/* بطاقات إحصائية */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label:"إجمالي الإيرادات", value:fmt(stats.revenue),        icon:TrendingUp, color:"text-green-600  bg-green-50 dark:bg-green-900/20"   },
-              { label:"الطلبات",           value:stats.orders.toString(),   icon:ShoppingBag,color:"text-blue-600   bg-blue-50  dark:bg-blue-900/20"    },
-              { label:"العملاء",           value:stats.customers.toString(),icon:Users,      color:"text-purple-600 bg-purple-50 dark:bg-purple-900/20" },
-              { label:"المنتجات النشطة",  value:stats.products.toString(), icon:Package,    color:"text-brand-700  bg-brand-50 dark:bg-brand-900/30"   },
-            ].map(({ label, value, icon:Icon, color }) => (
-              <div key={label} className="card-base p-5 flex items-center gap-4">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${color}`}>
-                  <Icon size={22} />
-                </div>
-                <div>
-                  <p className="text-sm text-[var(--text-muted)]">{label}</p>
-                  <p className="text-xl font-bold text-[var(--text-1)]">{value}</p>
-                </div>
-              </div>
-            ))}
+      {/* بطاقات الملخص */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {loading ? (
+          [1,2,3,4].map(i => <div key={i} className="skeleton h-28 w-full rounded-xl"/>)
+        ) : [
+          { label:"إجمالي الإيرادات", value:formatYER(summary?.totalRevenue ?? 0),
+            icon:TrendingUp, color:"text-brand-700 dark:text-accent-400", bg:"bg-brand-50 dark:bg-brand-900/30" },
+          { label:"الطلبات",           value:String(summary?.totalOrders ?? 0),
+            icon:ShoppingBag,  color:"text-blue-600",  bg:"bg-blue-50 dark:bg-blue-900/20" },
+          { label:"العملاء الجدد",     value:String(summary?.newCustomers ?? 0),
+            icon:Users,        color:"text-purple-600",bg:"bg-purple-50 dark:bg-purple-900/20" },
+          { label:"المنتجات النشطة",  value:String(summary?.totalProducts ?? 0),
+            icon:Package,      color:"text-green-600", bg:"bg-green-50 dark:bg-green-900/20" },
+        ].map(({ label, value, icon:Icon, color, bg }) => (
+          <div key={label} className="card-base p-5">
+            <div className={`flex h-11 w-11 items-center justify-center rounded-xl mb-3 ${bg}`}>
+              <Icon size={20} className={color}/>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">{label}</p>
+            <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
           </div>
+        ))}
+      </div>
 
-          {/* مخطط المبيعات اليومية (Bars CSS) */}
-          <div className="card-base p-5">
-            <h2 className="font-semibold text-[var(--text-1)] mb-5">مبيعات آخر 7 أيام</h2>
-            <div className="flex items-end gap-3 h-40">
-              {daily.map(d => (
-                <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-[var(--text-muted)] font-medium">
-                    {d.revenue > 0 ? new Intl.NumberFormat("ar-YE",{notation:"compact"}).format(d.revenue)+"﷼" : ""}
+      {/* مخطط المبيعات اليومية */}
+      <div className="card-base p-5">
+        <h2 className="font-semibold text-[var(--text-1)] mb-5">
+          المبيعات اليومية — آخر {days} أيام
+        </h2>
+        {loading ? (
+          <div className="skeleton h-48 w-full rounded-lg"/>
+        ) : dailySales.length === 0 ? (
+          <div className="py-12 text-center text-[var(--text-muted)]">
+            <TrendingUp size={32} className="mx-auto mb-2 opacity-20"/>
+            لا توجد بيانات
+          </div>
+        ) : (
+          <div className="flex items-end gap-1 h-48 px-1">
+            {dailySales.map(day => {
+              const h = maxRevenue > 0 ? (day.revenue / maxRevenue) * 100 : 0;
+              const date = new Date(day.date).toLocaleDateString("ar-YE", { day:"numeric", month:"short" });
+              return (
+                <div key={day.date} className="flex-1 flex flex-col items-center gap-1 group">
+                  {/* Tooltip */}
+                  <div className="hidden group-hover:block absolute -translate-y-full bg-brand-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-10">
+                    {date}: {formatYER(day.revenue)} ({day.orders} طلب)
+                  </div>
+                  <div className="relative w-full flex flex-col justify-end" style={{ height:"160px" }}>
+                    <div
+                      className="w-full rounded-t-sm transition-all duration-300 cursor-pointer"
+                      style={{
+                        height: `${Math.max(h, day.revenue > 0 ? 4 : 0)}%`,
+                        background: day.revenue > 0
+                          ? "linear-gradient(180deg, #09444C, #0a5561)"
+                          : "var(--border)",
+                      }}
+                      title={`${date}: ${formatYER(day.revenue)} (${day.orders} طلب)`}
+                    />
+                  </div>
+                  <span className="text-[9px] text-[var(--text-muted)] text-center leading-tight">
+                    {date}
                   </span>
-                  <div
-                    className="w-full rounded-t-md bg-brand-700 dark:bg-accent-500 transition-all hover:opacity-80"
-                    style={{ height: `${Math.max((d.revenue / maxRev) * 100, d.revenue > 0 ? 8 : 2)}%` }}
-                    title={`${d.orders} طلب · ${fmt(d.revenue)}`}
-                  />
-                  <span className="text-[9px] text-[var(--text-muted)] text-center leading-tight">{d.day}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        {/* أكثر المنتجات مبيعاً */}
+        <div className="card-base p-5">
+          <h2 className="font-semibold text-[var(--text-1)] mb-4">أكثر المنتجات مبيعاً</h2>
+          {loading ? (
+            <div className="space-y-3">{[1,2,3].map(i=><div key={i} className="skeleton h-10 w-full"/>)}</div>
+          ) : topProducts.length === 0 ? (
+            <div className="py-8 text-center text-[var(--text-muted)] text-sm">لا توجد بيانات</div>
+          ) : (
+            <div className="space-y-3">
+              {topProducts.map((p, i) => (
+                <div key={p.name} className="flex items-center gap-3">
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    i === 0 ? "bg-accent-500 text-brand-900"
+                    : i === 1 ? "bg-brand-200 text-brand-800"
+                    : "bg-[var(--border)] text-[var(--text-muted)]"
+                  }`}>{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--text-1)] truncate">{p.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex-1 h-1 rounded-full bg-[var(--border)]">
+                        <div className="h-1 rounded-full bg-brand-600"
+                          style={{ width: `${(p.qty / (topProducts[0]?.qty || 1)) * 100}%` }}/>
+                      </div>
+                      <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
+                        {p.qty} وحدة
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-brand-700 dark:text-accent-400 whitespace-nowrap">
+                    {formatYER(p.revenue)}
+                  </span>
                 </div>
               ))}
             </div>
-          </div>
+          )}
+        </div>
 
-          {/* أكثر المنتجات مبيعاً */}
-          <div className="card-base p-5">
-            <h2 className="font-semibold text-[var(--text-1)] mb-4">أكثر المنتجات مبيعاً</h2>
-            {topProd.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)] text-center py-6">لا توجد مبيعات بعد</p>
-            ) : (
-              <div className="space-y-3">
-                {topProd.map((p, i) => {
-                  const maxCount = topProd[0].count;
+        {/* توزيع حالات الطلبات */}
+        <div className="card-base p-5">
+          <h2 className="font-semibold text-[var(--text-1)] mb-4">توزيع الطلبات حسب الحالة</h2>
+          {loading ? (
+            <div className="space-y-3">{[1,2,3].map(i=><div key={i} className="skeleton h-8 w-full"/>)}</div>
+          ) : Object.keys(byStatus).length === 0 ? (
+            <div className="py-8 text-center text-[var(--text-muted)] text-sm">لا توجد بيانات</div>
+          ) : (
+            <div className="space-y-2.5">
+              {Object.entries(byStatus)
+                .sort((a, b) => b[1] - a[1])
+                .map(([status, count]) => {
+                  const total = Object.values(byStatus).reduce((s, n) => s + n, 0);
+                  const pct   = total > 0 ? Math.round((count / total) * 100) : 0;
+                  const COLOR_MAP: Record<string,string> = {
+                    pending:"bg-yellow-400", confirmed:"bg-blue-400",
+                    delivered:"bg-green-500", completed:"bg-green-600",
+                    cancelled:"bg-red-400", out_for_delivery:"bg-orange-400",
+                    processing:"bg-indigo-400",
+                  };
                   return (
-                    <div key={p.name} className="flex items-center gap-3">
-                      <span className="w-5 text-center text-xs font-bold text-[var(--text-muted)]">{i+1}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--text-1)] truncate">{p.name}</p>
-                        <div className="mt-1 h-1.5 rounded-full bg-[var(--border)]">
-                          <div
-                            className="h-full rounded-full bg-brand-700 dark:bg-accent-500"
-                            style={{ width: `${(p.count/maxCount)*100}%` }}
-                          />
-                        </div>
+                    <div key={status}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-[var(--text-2)]">
+                          {ORDER_STATUS_AR[status] ?? status}
+                        </span>
+                        <span className="text-sm font-semibold text-[var(--text-1)]">
+                          {count} ({pct}%)
+                        </span>
                       </div>
-                      <span className="text-sm font-bold text-[var(--text-1)] shrink-0">{p.count}</span>
+                      <div className="h-1.5 w-full rounded-full bg-[var(--border)]">
+                        <div className={`h-1.5 rounded-full transition-all ${COLOR_MAP[status] ?? "bg-gray-400"}`}
+                          style={{ width: `${pct}%` }}/>
+                      </div>
                     </div>
                   );
                 })}
-              </div>
-            )}
-          </div>
-        </>
-      )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
