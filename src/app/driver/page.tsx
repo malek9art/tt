@@ -1,117 +1,191 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { useAuthStore } from "@/store/authStore";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Package, CheckCircle, Clock, TrendingUp, ChevronLeft } from "lucide-react";
+import { Truck, MapPin, Phone, Clock, LogOut, Package, RefreshCw, CheckCircle } from "lucide-react";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-interface Stats { pending:number; today:number; total:number; rating:number|null; }
+const STATUS_STYLE: Record<string,{label:string;color:string}> = {
+  pending:          { label:"معلّق",       color:"bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+  assigned:         { label:"مسنَد لك",    color:"bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  picked_up:        { label:"تم الاستلام", color:"bg-indigo-100 text-indigo-700" },
+  out_for_delivery: { label:"في الطريق",  color:"bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  delivered:        { label:"تم التوصيل", color:"bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  failed:           { label:"فشل",         color:"bg-red-100 text-red-700" },
+  returned:         { label:"مُرتجَع",     color:"bg-purple-100 text-purple-700" },
+};
 
-export default function DriverHome() {
-  const { user, profile } = useAuthStore();
-  const [stats,   setStats]   = useState<Stats>({ pending:0, today:0, total:0, rating:null });
-  const [pending, setPending] = useState<{id:string;orders:{order_number:string;address_snapshot:{governorate?:string;district?:string}}}[]>([]);
-  const [loading, setLoading] = useState(true);
+interface Shipment {
+  id: string;
+  tracking_number: string;
+  status: string;
+  carrier_notes: string | null;
+  created_at: string;
+  orders: {
+    order_number: string;
+    total_amount: number;
+    currency: string;
+    address_snapshot: {
+      full_name: string;
+      phone: string;
+      governorate: string;
+      district: string | null;
+      street: string | null;
+    };
+  } | null;
+}
 
-  useEffect(() => {
-    if (!user) return;
-    Promise.all([
-      sb.from("shipments").select("id, orders(order_number, address_snapshot)")
-        .eq("driver_id", user.id)
-        .in("status", ["assigned","picked_up"])
-        .order("assigned_at"),
-      sb.from("shipments").select("id", { count:"exact", head:true })
-        .eq("driver_id", user.id).in("status", ["assigned","picked_up"]),
-      sb.from("shipments").select("id", { count:"exact", head:true })
-        .eq("driver_id", user.id).eq("status","delivered")
-        .gte("delivered_at", new Date().toISOString().split("T")[0]),
-      sb.from("drivers").select("total_deliveries, rating").eq("id", user.id).single(),
-    ]).then(([pendRes, pendCount, todayRes, driverRes]) => {
-      setPending(pendRes.data as typeof pending ?? []);
-      setStats({
-        pending: pendCount.count ?? 0,
-        today:   todayRes.count ?? 0,
-        total:   driverRes.data?.total_deliveries ?? 0,
-        rating:  driverRes.data?.rating ?? null,
-      });
-      setLoading(false);
-    });
-  }, [user]);
+export default function DriverDashboard() {
+  const router = useRouter();
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [driverName, setDriverName] = useState("المندوب");
+  const [filter,    setFilter]    = useState<"active"|"done">("active");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) { router.replace("/driver/login"); return; }
+
+    // جلب اسم المندوب
+    const { data: profile } = await sb.from("profiles").select("full_name").eq("id", user.id).single();
+    if (profile?.full_name) setDriverName(profile.full_name);
+
+    // جلب الشحنات المسندة لهذا المندوب
+    const { data } = await sb
+      .from("shipments")
+      .select(`
+        id, tracking_number, status, carrier_notes, created_at,
+        orders(order_number, total_amount, currency, address_snapshot)
+      `)
+      .eq("driver_id", user.id)
+      .order("created_at", { ascending: false });
+
+    setShipments((data as Shipment[]) ?? []);
+    setLoading(false);
+  }, [router]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSignOut = async () => {
+    await sb.auth.signOut();
+    router.replace("/driver/login");
+  };
+
+  const active = shipments.filter(s => !["delivered","failed","returned"].includes(s.status));
+  const done   = shipments.filter(s => ["delivered","failed","returned"].includes(s.status));
+  const shown  = filter === "active" ? active : done;
 
   return (
-    <div className="space-y-5">
-      {/* الترحيب */}
-      <div className="rounded-2xl bg-gradient-to-l from-brand-700 to-brand-800 p-5 text-white">
-        <p className="text-sm text-brand-200">مرحباً،</p>
-        <h1 className="text-xl font-bold mt-0.5">{profile?.full_name ?? "المندوب"}</h1>
-        <p className="text-brand-200 text-sm mt-1">
-          {new Date().toLocaleDateString("ar-YE", { weekday:"long", day:"numeric", month:"long" })}
-        </p>
-      </div>
-
-      {/* الإحصاءات */}
-      {loading ? (
-        <div className="grid grid-cols-2 gap-3">
-          {[1,2,3,4].map(i=><div key={i} className="skeleton h-20 rounded-xl"/>)}
+    <div className="min-h-screen bg-[var(--bg-page)]" dir="rtl">
+      {/* شريط علوي */}
+      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-[var(--border)] bg-[var(--bg-card)] px-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-700 text-white">
+            <Truck size={18}/>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[var(--text-1)]">{driverName}</p>
+            <p className="text-[10px] text-[var(--text-muted)]">مندوب توصيل</p>
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex gap-2">
+          <button onClick={load} className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors">
+            <RefreshCw size={16}/>
+          </button>
+          <button onClick={handleSignOut} className="flex h-8 w-8 items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <LogOut size={16}/>
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        {/* إحصاء سريع */}
+        <div className="grid grid-cols-3 gap-3">
           {[
-            { label:"طلبات معلّقة",  value:stats.pending, icon:Clock,        color:"bg-amber-50 dark:bg-amber-900/20 text-amber-600"  },
-            { label:"توصيل اليوم",  value:stats.today,   icon:CheckCircle,  color:"bg-green-50 dark:bg-green-900/20 text-green-600"  },
-            { label:"إجمالي التوصيل",value:stats.total,   icon:Package,      color:"bg-blue-50  dark:bg-blue-900/20  text-blue-600"   },
-            { label:"التقييم",       value:stats.rating ? stats.rating.toFixed(1) : "—", icon:TrendingUp, color:"bg-purple-50 dark:bg-purple-900/20 text-purple-600" },
-          ].map(({ label, value, icon:Icon, color }) => (
-            <div key={label} className="card-base p-4 flex items-center gap-3">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color}`}>
-                <Icon size={18}/>
-              </div>
-              <div>
-                <p className="text-xs text-[var(--text-muted)]">{label}</p>
-                <p className="text-lg font-bold text-[var(--text-1)]">{value}</p>
-              </div>
+            { label:"إجمالي",     value:shipments.length, color:"text-[var(--text-1)]" },
+            { label:"نشطة",       value:active.length,    color:"text-amber-600"       },
+            { label:"مكتملة",     value:done.length,      color:"text-green-600"       },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="card-base p-3 text-center">
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-[var(--text-muted)]">{label}</p>
             </div>
           ))}
         </div>
-      )}
 
-      {/* الطلبات المعلّقة */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-[var(--text-1)]">طلباتي الحالية</h2>
-          <Link href="/driver/orders" className="text-sm text-brand-700 dark:text-accent-400">
-            عرض الكل <ChevronLeft size={14} className="inline"/>
-          </Link>
+        {/* فلاتر */}
+        <div className="grid grid-cols-2 gap-2 rounded-xl border border-[var(--border)] p-1">
+          {[
+            { v:"active", l:`نشطة (${active.length})` },
+            { v:"done",   l:`مكتملة (${done.length})` },
+          ].map(({ v, l }) => (
+            <button key={v} onClick={()=>setFilter(v as typeof filter)}
+              className={`rounded-lg py-2 text-sm font-medium transition-all ${
+                filter===v ? "bg-brand-700 text-white shadow" : "text-[var(--text-2)] hover:bg-[var(--border)]"
+              }`}>{l}</button>
+          ))}
         </div>
+
+        {/* الشحنات */}
         {loading ? (
-          <div className="space-y-3">{[1,2].map(i=><div key={i} className="skeleton h-16 rounded-xl"/>)}</div>
-        ) : pending.length === 0 ? (
-          <div className="card-base py-10 text-center">
-            <Package size={32} className="mx-auto mb-2 opacity-20 text-[var(--text-muted)]"/>
-            <p className="text-[var(--text-muted)] text-sm">لا توجد طلبات معلّقة</p>
+          <div className="space-y-3">{[1,2,3].map(i=><div key={i} className="skeleton h-28 w-full rounded-xl"/>)}</div>
+        ) : shown.length === 0 ? (
+          <div className="card-base py-14 text-center">
+            <Package size={40} className="mx-auto mb-3 opacity-20 text-[var(--text-muted)]"/>
+            <p className="font-semibold text-[var(--text-1)]">
+              {filter==="active" ? "لا توجد شحنات نشطة" : "لا توجد شحنات مكتملة"}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {pending.slice(0, 3).map(s => {
-              const o = s.orders as { order_number:string; address_snapshot:{governorate?:string;district?:string} };
+            {shown.map(shipment => {
+              const addr = shipment.orders?.address_snapshot;
+              const st   = STATUS_STYLE[shipment.status] ?? { label:shipment.status, color:"bg-gray-100 text-gray-600" };
               return (
-                <Link key={s.id} href={`/driver/orders/${s.id}`}
-                  className="card-base flex items-center gap-3 p-4 hover:border-brand-300 transition-all">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-700">
-                    <Package size={18}/>
+                <Link key={shipment.id} href={`/driver/orders/${shipment.id}`}
+                  className="card-base block p-4 hover:border-brand-300 transition-all active:scale-[0.99]">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-bold text-[var(--text-1)]" dir="ltr">
+                        #{shipment.orders?.order_number}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5" dir="ltr">
+                        {shipment.tracking_number}
+                      </p>
+                    </div>
+                    <span className={`badge text-xs px-2.5 py-1 ${st.color}`}>{st.label}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-[var(--text-1)]" dir="ltr">{o?.order_number}</p>
-                    <p className="text-xs text-[var(--text-muted)] truncate">
-                      {o?.address_snapshot?.governorate}{o?.address_snapshot?.district ? ` · ${o.address_snapshot.district}` : ""}
-                    </p>
+
+                  {addr && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
+                        <MapPin size={13} className="shrink-0 text-brand-700"/>
+                        {addr.governorate}{addr.district && ` · ${addr.district}`}
+                        {addr.street && ` · ${addr.street}`}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
+                        <Phone size={13} className="shrink-0 text-brand-700"/>
+                        <span dir="ltr">{addr.phone}</span>
+                        <span className="text-[var(--text-muted)]">— {addr.full_name}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+                      <Clock size={11}/>
+                      {new Date(shipment.created_at).toLocaleDateString("ar-YE")}
+                    </span>
+                    <span className="text-sm font-bold text-brand-700 dark:text-accent-400">
+                      {new Intl.NumberFormat("ar-YE").format(shipment.orders?.total_amount ?? 0)} ﷼
+                    </span>
                   </div>
-                  <ChevronLeft size={16} className="text-[var(--text-muted)]"/>
                 </Link>
               );
             })}
