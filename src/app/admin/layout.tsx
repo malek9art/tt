@@ -1,8 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/supabase-server";
-import { createSupabaseServer } from "@/lib/supabase-server";
 import AdminSidebar from "@/components/admin/layout/AdminSidebar";
 import AdminHeader  from "@/components/admin/layout/AdminHeader";
 
@@ -11,48 +7,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // قراءة المسار الحالي
-  const headersList = await headers();
-  const pathname = headersList.get("x-pathname") ||
-    headersList.get("x-invoke-path") || "";
-
-  // صفحة login لا تحتاج تحقق — أرجع children مباشرة
-  if (pathname.includes("/admin/login")) {
-    return <>{children}</>;
-  }
-
-  // تحقق من الجلسة على مستوى السيرفر
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
-
-  // تحقق من صلاحيات الإدارة
-  const supabase = await createSupabaseServer();
-  const { data: isAdmin } = await supabase.rpc("has_permission", {
-    _user_id: user.id,
-    _perm: "products:read",
-  });
-
-  if (!isAdmin) {
-    redirect("/admin/login?error=unauthorized");
-  }
-
+// الحماية تتم بالكامل عبر middleware.ts
+// لا يوجد تحقق هنا لتجنب redirect loop مع /admin/login
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--bg-page)]" dir="rtl">
-      <AdminSidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <AdminHeader />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
-      </div>
+    <div className="min-h-screen bg-[var(--bg-page)]" dir="rtl">
+      {children}
     </div>
   );
 }
