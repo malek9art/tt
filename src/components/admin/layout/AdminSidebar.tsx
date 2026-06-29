@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, ShoppingBag, Users,
-  Warehouse, Tag, BarChart3, Settings, ChevronLeft,
+  Warehouse, Tag, BarChart3, Truck, Settings, ChevronLeft,
   X, Menu
 } from "lucide-react";
 import { useState } from "react";
