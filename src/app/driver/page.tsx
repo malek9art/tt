@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Truck, MapPin, Phone, Clock, LogOut, Package, RefreshCw, CheckCircle } from "lucide-react";
+import { Truck, MapPin, Phone, Clock, LogOut, Package, RefreshCw } from "lucide-react";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,39 +20,18 @@ const STATUS_STYLE: Record<string,{label:string;color:string}> = {
   returned:         { label:"مُرتجَع",      color:"bg-purple-100 text-purple-700" },
 };
 
-interface OrderSnap {
-  order_number:     string;
-  total_amount:     number;
-  currency:         string;
-  address_snapshot: {
-    full_name:   string;
-    phone:       string;
-    governorate: string;
-    district?:   string;
-    street?:     string;
-  };
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = Record<string, any>;
 
-// Supabase يُعيد joined rows كـ array أو object — نعالج الحالتين
-type OrderField = OrderSnap | OrderSnap[] | null;
-
-interface Shipment {
-  id:              string;
-  tracking_number: string;
-  status:          string;
-  carrier_notes:   string | null;
-  created_at:      string;
-  orders:          OrderField;
-}
-
-function getOrderData(orders: OrderField): OrderSnap | null {
-  if (!orders) return null;
-  return Array.isArray(orders) ? orders[0] ?? null : orders;
+function getOrder(row: Row): Row | null {
+  const o = row.orders;
+  if (!o) return null;
+  return Array.isArray(o) ? o[0] ?? null : o;
 }
 
 export default function DriverDashboard() {
   const router = useRouter();
-  const [shipments,  setShipments]  = useState<Shipment[]>([]);
+  const [shipments,  setShipments]  = useState<Row[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [driverName, setDriverName] = useState("المندوب");
   const [filter,     setFilter]     = useState<"active"|"done">("active");
@@ -67,14 +46,11 @@ export default function DriverDashboard() {
 
     const { data } = await sb
       .from("shipments")
-      .select(`
-        id, tracking_number, status, carrier_notes, created_at,
-        orders(order_number, total_amount, currency, address_snapshot)
-      `)
+      .select("id, tracking_number, status, carrier_notes, created_at, orders(order_number, total_amount, currency, address_snapshot)")
       .eq("driver_id", user.id)
       .order("created_at", { ascending: false });
 
-    setShipments((data as unknown as Shipment[]) ?? []);
+    setShipments((data as Row[]) ?? []);
     setLoading(false);
   }, [router]);
 
@@ -85,8 +61,8 @@ export default function DriverDashboard() {
     router.replace("/driver/login");
   };
 
-  const active = shipments.filter(s => !["delivered","failed","returned"].includes(s.status));
-  const done   = shipments.filter(s =>  ["delivered","failed","returned"].includes(s.status));
+  const active = shipments.filter(s => !["delivered","failed","returned"].includes(String(s.status)));
+  const done   = shipments.filter(s =>  ["delivered","failed","returned"].includes(String(s.status)));
   const shown  = filter === "active" ? active : done;
 
   return (
@@ -130,7 +106,7 @@ export default function DriverDashboard() {
             { v:"active", l:`نشطة (${active.length})` },
             { v:"done",   l:`مكتملة (${done.length})` },
           ].map(({ v, l }) => (
-            <button key={v} onClick={()=>setFilter(v as typeof filter)}
+            <button key={v} onClick={()=>setFilter(v as "active"|"done")}
               className={`rounded-lg py-2 text-sm font-medium transition-all ${
                 filter===v ? "bg-brand-700 text-white shadow" : "text-[var(--text-2)] hover:bg-[var(--border)]"
               }`}>{l}</button>
@@ -148,17 +124,17 @@ export default function DriverDashboard() {
           </div>
         ) : (
           <div className="space-y-3">
-            {shown.map(shipment => {
-              const orderData = getOrderData(shipment.orders);
-              const addr = orderData?.address_snapshot;
-              const st   = STATUS_STYLE[shipment.status] ?? { label:shipment.status, color:"bg-gray-100 text-gray-600" };
+            {shown.map(ship => {
+              const order = getOrder(ship);
+              const addr  = order?.address_snapshot;
+              const st    = STATUS_STYLE[String(ship.status)] ?? { label:String(ship.status), color:"bg-gray-100 text-gray-600" };
               return (
-                <Link key={shipment.id} href={`/driver/orders/${shipment.id}`}
+                <Link key={String(ship.id)} href={`/driver/orders/${ship.id}`}
                   className="card-base block p-4 hover:border-brand-300 transition-all active:scale-[0.99]">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <p className="font-bold text-[var(--text-1)]" dir="ltr">#{orderData?.order_number}</p>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5" dir="ltr">{shipment.tracking_number}</p>
+                      <p className="font-bold text-[var(--text-1)]" dir="ltr">#{order?.order_number}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5" dir="ltr">{String(ship.tracking_number)}</p>
                     </div>
                     <span className={`badge text-xs px-2.5 py-1 ${st.color}`}>{st.label}</span>
                   </div>
@@ -166,23 +142,23 @@ export default function DriverDashboard() {
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
                         <MapPin size={13} className="shrink-0 text-brand-700"/>
-                        {addr.governorate}{addr.district && ` · ${addr.district}`}
-                        {addr.street && ` · ${addr.street}`}
+                        {String(addr.governorate ?? "")}{addr.district ? ` · ${addr.district}` : ""}
+                        {addr.street ? ` · ${addr.street}` : ""}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-[var(--text-2)]">
                         <Phone size={13} className="shrink-0 text-brand-700"/>
-                        <span dir="ltr">{addr.phone}</span>
-                        <span className="text-[var(--text-muted)]">— {addr.full_name}</span>
+                        <span dir="ltr">{String(addr.phone ?? "")}</span>
+                        <span className="text-[var(--text-muted)]">— {String(addr.full_name ?? "")}</span>
                       </div>
                     </div>
                   )}
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                       <Clock size={11}/>
-                      {new Date(shipment.created_at).toLocaleDateString("ar-YE")}
+                      {new Date(String(ship.created_at)).toLocaleDateString("ar-YE")}
                     </span>
                     <span className="text-sm font-bold text-brand-700 dark:text-accent-400">
-                      {new Intl.NumberFormat("ar-YE").format(orderData?.total_amount ?? 0)} ﷼
+                      {new Intl.NumberFormat("ar-YE").format(Number(order?.total_amount ?? 0))} ﷼
                     </span>
                   </div>
                 </Link>
