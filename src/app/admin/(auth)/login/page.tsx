@@ -4,11 +4,6 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react";
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email,    setEmail]    = useState("");
@@ -24,29 +19,68 @@ export default function AdminLoginPage() {
     setLoading(true);
     setError("");
 
+    // ننشئ client جديد في كل مرة لضمان نظافة الجلسة
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    // 1. تسجيل الدخول
     const { data, error: signInErr } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
       password,
     });
 
-    if (signInErr || !data.user) {
+    if (signInErr || !data.user || !data.session) {
       setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
     }
 
-    const { data: isAdmin } = await supabase.rpc("has_permission", {
-      _user_id: data.user.id,
-      _perm: "products:read",
-    });
+    // 2. التحقق من الصلاحيات باستخدام access_token مباشرة
+    // نُنشئ client بالـ token الجديد صراحةً
+    const authedSupabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+        },
+      }
+    );
 
-    if (!isAdmin) {
+    const { data: isAdmin, error: rpcErr } = await authedSupabase.rpc(
+      "has_permission",
+      { _user_id: data.user.id, _perm: "products:read" }
+    );
+
+    if (rpcErr) {
+      console.error("RPC error:", rpcErr);
+      // في حالة فشل الـ RPC، نتحقق من الدور مباشرة
+      const { data: roleData } = await authedSupabase
+        .from("user_roles")
+        .select("roles(name)")
+        .eq("user_id", data.user.id)
+        .limit(1)
+        .single();
+
+      const roleName = (roleData?.roles as { name?: string } | null)?.name;
+      if (!roleName || !["super_admin","admin","manager"].includes(roleName)) {
+        await supabase.auth.signOut();
+        setError("ليس لديك صلاحيات الدخول للوحة الإدارة");
+        setLoading(false);
+        return;
+      }
+    } else if (!isAdmin) {
       await supabase.auth.signOut();
       setError("ليس لديك صلاحيات الدخول للوحة الإدارة");
       setLoading(false);
       return;
     }
 
+    // 3. الدخول ناجح — التوجيه للوحة
     router.replace("/admin");
   };
 
@@ -64,12 +98,16 @@ export default function AdminLoginPage() {
       style={{ background: "linear-gradient(135deg, #031E22 0%, #09444C 100%)" }}
     >
       <div className="w-full max-w-sm">
+        {/* الشعار */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-500 text-brand-900 font-bold text-2xl shadow-xl">أ</div>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-500 text-brand-900 font-bold text-2xl shadow-xl">
+            أ
+          </div>
           <h1 className="text-xl font-bold text-white">مركز الأحمدي للجوالات</h1>
           <p className="mt-1 text-sm text-brand-300">لوحة الإدارة — للمسؤولين فقط</p>
         </div>
 
+        {/* البطاقة */}
         <div className="rounded-2xl border border-brand-700/50 bg-brand-800/80 p-6 shadow-2xl backdrop-blur">
           <h2 className="mb-5 text-center text-base font-semibold text-white">تسجيل الدخول</h2>
 
@@ -80,8 +118,11 @@ export default function AdminLoginPage() {
           )}
 
           <div className="space-y-4">
+            {/* البريد */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-brand-300">البريد الإلكتروني</label>
+              <label className="mb-1.5 block text-xs font-medium text-brand-300">
+                البريد الإلكتروني
+              </label>
               <div className="relative">
                 <Mail size={15} className="absolute top-3 end-3 text-brand-400 pointer-events-none" />
                 <input
@@ -95,12 +136,16 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
+            {/* كلمة المرور */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-brand-300">كلمة المرور</label>
+              <label className="mb-1.5 block text-xs font-medium text-brand-300">
+                كلمة المرور
+              </label>
               <div className="relative">
                 <Lock size={15} className="absolute top-3 end-3 text-brand-400 pointer-events-none" />
                 <input
-                  type={showPw ? "text" : "password"} dir="ltr" placeholder="••••••••"
+                  type={showPw ? "text" : "password"} dir="ltr"
+                  placeholder="••••••••"
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError(""); }}
                   onKeyDown={e => e.key === "Enter" && handleLogin()}
@@ -116,6 +161,7 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
+            {/* زر الدخول */}
             <button
               onClick={handleLogin}
               disabled={loading || !email || !password}
@@ -128,7 +174,7 @@ export default function AdminLoginPage() {
 
           <div className="mt-5 flex items-center gap-2 rounded-lg bg-brand-900/50 p-3 text-xs text-brand-400">
             <ShieldCheck size={13} className="shrink-0 text-accent-500" />
-            الدخول مقتصر على المسؤولين — لا يمكن إنشاء حسابات إدارية من هنا
+            الدخول مقتصر على المسؤولين المسجّلين
           </div>
         </div>
 
