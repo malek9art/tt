@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -12,10 +11,11 @@ const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-type Step = "form" | "sent" | "done";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://ahmadi-store.vercel.app";
+
+type Step = "form" | "sent";
 
 export default function RegisterForm() {
-  const router = useRouter();
   const [step,    setStep]    = useState<Step>("form");
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
@@ -27,19 +27,17 @@ export default function RegisterForm() {
   };
 
   const handleSend = async () => {
-    if (!form.full_name.trim()) { setError("أدخل اسمك الكامل"); return; }
-    if (!form.email.trim() || !form.email.includes("@")) {
-      setError("أدخل بريداً إلكترونياً صحيحاً");
-      return;
-    }
+    if (!form.full_name.trim()) { setError("أدخل اسمك الكامل");          return; }
+    if (!form.email.includes("@")) { setError("بريد إلكتروني غير صحيح"); return; }
+
     setLoading(true);
     setError("");
 
     const { error: err } = await supabase.auth.signInWithOtp({
-      email: form.email,
+      email: form.email.trim().toLowerCase(),
       options: {
-        data: { full_name: form.full_name },
-        emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=/account`,
+        data: { full_name: form.full_name.trim() },
+        emailRedirectTo: `${APP_URL}/auth/callback?redirectTo=/account`,
         shouldCreateUser: true,
       },
     });
@@ -66,17 +64,6 @@ export default function RegisterForm() {
           </div>
 
           <div className="card-base p-6">
-
-            {/* ===== نجاح ===== */}
-            {step === "done" && (
-              <div className="py-8 text-center">
-                <CheckCircle size={56} className="mx-auto mb-4 text-green-500" />
-                <p className="text-lg font-bold text-[var(--text-1)]">أهلاً {form.full_name}!</p>
-                <p className="text-sm text-[var(--text-muted)] mt-1">تم إنشاء حسابك بنجاح</p>
-              </div>
-            )}
-
-            {/* ===== تم الإرسال ===== */}
             {step === "sent" && (
               <div className="space-y-5">
                 <div className="text-center">
@@ -85,23 +72,18 @@ export default function RegisterForm() {
                   </div>
                   <h2 className="font-bold text-[var(--text-1)] mb-2">تم إرسال رابط التأكيد!</h2>
                   <p className="text-sm text-[var(--text-muted)]">
-                    أرسلنا رابطاً إلى{" "}
-                    <strong className="text-[var(--text-1)]">{form.email}</strong>
+                    إلى <strong className="text-[var(--text-1)]">{form.email}</strong>
                   </p>
                 </div>
-
                 <div className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-4 space-y-2">
                   <p className="text-sm font-semibold text-brand-700 dark:text-accent-400">📧 خطوتان لتفعيل حسابك:</p>
                   <p className="text-sm text-[var(--text-2)]">① افتح تطبيق البريد الإلكتروني</p>
                   <p className="text-sm text-[var(--text-2)]">② اضغط زر <strong>تأكيد الحساب</strong> في الرسالة</p>
                 </div>
-
-                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3">
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    ⚠ افتح الرابط من نفس المتصفح. الرابط صالح لساعة واحدة.
-                  </p>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 text-xs text-amber-700 dark:text-amber-300">
+                  ⚠ افتح الرابط من <strong>Chrome</strong> أو متصفح عادي — ليس من داخل تطبيق Gmail.
+                  الرابط صالح لساعة واحدة.
                 </div>
-
                 <div className="flex gap-2">
                   <button onClick={() => { setStep("form"); setError(""); }}
                     className="flex-1 btn-ghost border border-[var(--border)] text-sm">
@@ -115,7 +97,6 @@ export default function RegisterForm() {
               </div>
             )}
 
-            {/* ===== نموذج التسجيل ===== */}
             {step === "form" && (
               <div className="space-y-4">
                 {error && (
@@ -123,55 +104,37 @@ export default function RegisterForm() {
                     ⚠ {error}
                   </div>
                 )}
-
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-[var(--text-2)]">
-                    الاسم الكامل *
-                  </label>
+                  <label className="mb-1 block text-sm font-medium text-[var(--text-2)]">الاسم الكامل *</label>
                   <div className="relative">
                     <User size={15} className="absolute top-3 end-3 text-[var(--text-muted)]" />
-                    <input
-                      type="text"
-                      placeholder="محمد أحمد العلوي"
+                    <input type="text" placeholder="محمد أحمد"
                       value={form.full_name}
                       onChange={e => setF("full_name", e.target.value)}
                       onKeyDown={e => e.key === "Enter" && handleSend()}
-                      className={iCls + " pe-9"}
-                      autoComplete="name"
-                    />
+                      className={iCls + " pe-9"} autoComplete="name" />
                   </div>
                 </div>
-
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-[var(--text-2)]">
-                    البريد الإلكتروني *
-                  </label>
+                  <label className="mb-1 block text-sm font-medium text-[var(--text-2)]">البريد الإلكتروني *</label>
                   <div className="relative">
                     <Mail size={15} className="absolute top-3 end-3 text-[var(--text-muted)]" />
-                    <input
-                      type="email"
-                      dir="ltr"
-                      placeholder="example@gmail.com"
+                    <input type="email" dir="ltr" placeholder="example@gmail.com"
                       value={form.email}
                       onChange={e => setF("email", e.target.value)}
                       onKeyDown={e => e.key === "Enter" && handleSend()}
-                      className={iCls + " pe-9"}
-                      autoComplete="email"
-                    />
+                      className={iCls + " pe-9"} autoComplete="email" />
                   </div>
                 </div>
-
-                <button
-                  onClick={handleSend}
+                <button onClick={handleSend}
                   disabled={loading || !form.full_name || !form.email}
                   className="btn-primary w-full justify-center">
                   {loading
                     ? <><Loader2 size={16} className="animate-spin" /> جارٍ الإرسال...</>
                     : <>إنشاء الحساب <ArrowLeft size={16} /></>}
                 </button>
-
                 <p className="text-xs text-center text-[var(--text-muted)]">
-                  ستصلك رسالة — اضغط الرابط لتفعيل حسابك فوراً
+                  ستصلك رسالة — اضغط الرابط لتفعيل حسابك
                 </p>
               </div>
             )}
@@ -180,9 +143,7 @@ export default function RegisterForm() {
           {step === "form" && (
             <p className="mt-4 text-center text-sm text-[var(--text-muted)]">
               لديك حساب؟{" "}
-              <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900 transition-colors">
-                سجّل دخول
-              </Link>
+              <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900 transition-colors">سجّل دخول</Link>
             </p>
           )}
         </div>
