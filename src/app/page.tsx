@@ -11,9 +11,22 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/shop/ProductCard";
 import ProductCardSkeleton from "@/components/shop/ProductCardSkeleton";
+import HeroBannerSlider from "@/components/shop/HeroBannerSlider";
 import { getFeaturedProducts, getLatestProducts, getCategories } from "@/lib/api";
+import { createSupabaseServer as createClient } from "@/lib/supabase-server";
 
 export const revalidate = 60;
+
+async function getBanners() {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("banners")
+      .select("id, title, subtitle, image_url, link_url, link_label, badge_text, sort_order")
+      .order("sort_order", { ascending: true });
+    return data ?? [];
+  } catch { return []; }
+}
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   smartphones:      HiDevicePhoneMobile,
@@ -36,48 +49,52 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default async function HomePage() {
-  const [featured, latest, categories] = await Promise.all([
+  const [featured, latest, categories, banners] = await Promise.all([
     getFeaturedProducts(8),
     getLatestProducts(8),
     getCategories(),
+    getBanners(),
   ]);
 
   return (
     <div className="min-h-screen">
       <Header />
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-bl from-brand-900 via-brand-700 to-brand-600 text-white">
-        <div className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #FFE100 0%, transparent 50%), radial-gradient(circle at 80% 20%, #FFE100 0%, transparent 50%)" }} />
-        {/* نقاط زخرفية */}
-        <div className="absolute inset-0 opacity-5"
-          style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }}/>
-        <div className="container-main relative py-20 md:py-28">
-          <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-accent-500/20 px-4 py-1.5 text-sm text-accent-400 border border-accent-500/30">
-              <HiBolt className="text-base"/> أفضل الأسعار في اليمن
-            </div>
-            <h1 className="mb-4 text-4xl font-bold leading-tight md:text-5xl">
-              جوالك الجديد<br />
-              <span className="text-accent-500">بأفضل سعر</span>
-            </h1>
-            <p className="mb-8 text-lg text-brand-200 leading-relaxed">
-              مركز الأحمدي للجوالات ومستلزماتها — تعز، اليمن.
-              أحدث الأجهزة، قطع الغيار الأصلية، وخدمات صيانة احترافية.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/products" className="btn-accent inline-flex items-center gap-2">
-                تسوّق الآن <HiArrowLeft className="text-base"/>
-              </Link>
-              <Link href="/products?cat=repair-services"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white/10">
-                <MdBuildCircle className="text-base"/> خدمات الصيانة
-              </Link>
+      {/* Hero — بنرات ديناميكية أو افتراضي */}
+      {banners.length > 0 ? (
+        <HeroBannerSlider banners={banners}/>
+      ) : (
+        <section className="relative overflow-hidden bg-gradient-to-bl from-brand-900 via-brand-700 to-brand-600 text-white">
+          <div className="absolute inset-0 opacity-10"
+            style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #FFE100 0%, transparent 50%), radial-gradient(circle at 80% 20%, #FFE100 0%, transparent 50%)" }} />
+          <div className="absolute inset-0 opacity-5"
+            style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "32px 32px" }}/>
+          <div className="container-main relative py-20 md:py-28">
+            <div className="max-w-2xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-accent-500/20 px-4 py-1.5 text-sm text-accent-400 border border-accent-500/30">
+                <HiBolt className="text-base"/> أفضل الأسعار في اليمن
+              </div>
+              <h1 className="mb-4 text-4xl font-bold leading-tight md:text-5xl">
+                جوالك الجديد<br />
+                <span className="text-accent-500">بأفضل سعر</span>
+              </h1>
+              <p className="mb-8 text-lg text-brand-200 leading-relaxed">
+                مركز الأحمدي للجوالات ومستلزماتها — تعز، اليمن.
+                أحدث الأجهزة، قطع الغيار الأصلية، وخدمات صيانة احترافية.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/products" className="btn-accent inline-flex items-center gap-2">
+                  تسوّق الآن <HiArrowLeft className="text-base"/>
+                </Link>
+                <Link href="/products?cat=repair-services"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white/10">
+                  <MdBuildCircle className="text-base"/> خدمات الصيانة
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* مميزاتنا */}
       <section className="border-b border-[var(--border)] bg-[var(--bg-card)]">
@@ -114,7 +131,7 @@ export default async function HomePage() {
               </Link>
             </div>
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7">
-              {categories.map(cat => {
+              {categories.map((cat: { id: string; slug: string; name_ar: string }) => {
                 const Icon  = CATEGORY_ICONS[cat.slug] ?? HiDevicePhoneMobile;
                 const color = CATEGORY_COLORS[cat.slug] ?? "bg-brand-50 text-brand-700 dark:bg-brand-900/20";
                 return (
@@ -143,7 +160,8 @@ export default async function HomePage() {
           </div>
           {featured.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-              {featured.map(p => <ProductCard key={p.id} product={p} />)}
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {featured.map((p: any) => <ProductCard key={p.id} product={p} />)}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -164,7 +182,8 @@ export default async function HomePage() {
           </div>
           {latest.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-              {latest.map(p => <ProductCard key={p.id} product={p} />)}
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {latest.map((p: any) => <ProductCard key={p.id} product={p} />)}
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--border)] p-12 text-center text-[var(--text-muted)]">
