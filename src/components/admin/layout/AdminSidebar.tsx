@@ -2,21 +2,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Package, ShoppingBag, Users,
-  Warehouse, Tag, BarChart3, Truck, Settings, ChevronLeft,
-  X, Menu
-} from "lucide-react";
+  HiSquares2X2, HiArchiveBox, HiShoppingBag, HiUsers,
+  HiBuildingStorefront, HiTag, HiChartBar, HiTruck,
+  HiCog6Tooth, HiChevronLeft, HiXMark, HiBars3, HiPhoto,
+  HiBanknotes, HiBuildingLibrary,
+} from "react-icons/hi2";
 import { useState } from "react";
 
 const NAV = [
-  { href:"/admin",              label:"لوحة التحكم",  icon:LayoutDashboard, exact:true },
-  { href:"/admin/products",     label:"المنتجات",      icon:Package },
-  { href:"/admin/orders",       label:"الطلبات",       icon:ShoppingBag },
-  { href:"/admin/customers",    label:"العملاء",       icon:Users },
-  { href:"/admin/inventory",    label:"المخزون",       icon:Warehouse },
-  { href:"/admin/analytics",    label:"التحليلات",     icon:BarChart3 },
-  { href:"/admin/marketing",    label:"التسويق",       icon:Tag },
-  { href:"/admin/settings",     label:"الإعدادات",     icon:Settings },
+  { href:"/admin",                                    label:"لوحة التحكم",         icon:HiSquares2X2,        exact:true },
+  { href:"/admin/products",                           label:"المنتجات",             icon:HiArchiveBox },
+  { href:"/admin/orders",                             label:"الطلبات",              icon:HiShoppingBag },
+  { href:"/admin/payments",                           label:"المدفوعات",            icon:HiBanknotes },
+  { href:"/admin/customers",                          label:"العملاء",              icon:HiUsers },
+  { href:"/admin/inventory",                          label:"المخزون",              icon:HiBuildingStorefront },
+  { href:"/admin/analytics",                          label:"التحليلات",            icon:HiChartBar },
+  { href:"/admin/marketing",                          label:"التسويق والكوبونات",   icon:HiTag },
+  { href:"/admin/banners",                            label:"البنرات الإعلانية",    icon:HiPhoto },
+  { href:"/admin/drivers",                            label:"المناديب",             icon:HiTruck },
+  { href:"/admin/settings/transfer-points",           label:"نقاط التحويل",         icon:HiBuildingLibrary },
+  { href:"/admin/settings",                           label:"الإعدادات",            icon:HiCog6Tooth },
 ];
 
 export default function AdminSidebar() {
@@ -35,7 +40,7 @@ export default function AdminSidebar() {
           <p className="text-[10px] text-brand-400">لوحة الإدارة</p>
         </div>
         <button onClick={() => setOpen(false)} className="mr-auto md:hidden text-brand-400 hover:text-white">
-          <X size={18}/>
+          <HiXMark className="text-lg"/>
         </button>
       </div>
 
@@ -47,9 +52,9 @@ export default function AdminSidebar() {
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 active ? "bg-brand-700 text-white" : "text-brand-300 hover:bg-brand-800 hover:text-white"
               }`}>
-              <Icon size={18} className="shrink-0"/>
+              <Icon className="text-lg shrink-0"/>
               {label}
-              {active && <ChevronLeft size={14} className="mr-auto"/>}
+              {active && <HiChevronLeft className="text-sm mr-auto"/>}
             </Link>
           );
         })}
@@ -71,7 +76,7 @@ export default function AdminSidebar() {
       </aside>
       <button onClick={() => setOpen(true)}
         className="fixed bottom-4 start-4 z-40 md:hidden flex h-12 w-12 items-center justify-center rounded-full bg-brand-700 text-white shadow-lg">
-        <Menu size={20}/>
+        <HiBars3 className="text-xl"/>
       </button>
       {open && (
         <>
