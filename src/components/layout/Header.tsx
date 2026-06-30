@@ -1,26 +1,34 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useTheme }     from "next-themes";
-import { ShoppingCart, Search, Sun, Moon, Menu, X, Phone, User, LogOut } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useCartStore }      from "@/store/cartStore";
-import { useAuthStore }      from "@/store/authStore";
-import { useStoreSettings }  from "@/lib/useStoreSettings";
-import { useRouter }         from "next/navigation";
+import { useTheme } from "next-themes";
+import { useState, useEffect, useRef } from "react";
+import { useCartStore } from "@/store/cartStore";
+import { useAuthStore } from "@/store/authStore";
+import { useStoreSettings } from "@/lib/useStoreSettings";
+import { useRouter } from "next/navigation";
+import {
+  HiShoppingCart, HiMagnifyingGlass, HiSun, HiMoon,
+  HiBars3, HiXMark, HiPhone, HiUser, HiArrowRightOnRectangle,
+} from "react-icons/hi2";
+import { FaWhatsapp } from "react-icons/fa6";
 
 const NAV = [
-  { href:"/",              label:"الرئيسية"      },
-  { href:"/products",      label:"المنتجات"       },
-  { href:"/products?cat=phones",      label:"هواتف"   },
-  { href:"/products?cat=accessories", label:"إكسسوارات"},
+  { href: "/",                        label: "الرئيسية"    },
+  { href: "/products",                label: "المنتجات"    },
+  { href: "/products?cat=phones",     label: "هواتف"       },
+  { href: "/products?cat=accessories",label: "إكسسوارات"  },
+  { href: "/products?cat=spare-parts",label: "قطع الغيار" },
 ];
 
 export default function Header() {
-  const { theme, setTheme }   = useTheme();
+  const { theme, setTheme } = useTheme();
   const [mounted,   setMounted]   = useState(false);
   const [menuOpen,  setMenuOpen]  = useState(false);
   const [userMenu,  setUserMenu]  = useState(false);
+  const [searchOpen,setSearchOpen]= useState(false);
+  const [query,     setQuery]     = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const { totalItems, toggleCart } = useCartStore();
   const { user, profile, signOut } = useAuthStore();
   const settings = useStoreSettings();
@@ -29,15 +37,27 @@ export default function Header() {
   useEffect(() => setMounted(true), []);
   const count = mounted ? totalItems() : 0;
 
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus();
+  }, [searchOpen]);
+
   const handleSignOut = async () => {
     await signOut();
     setUserMenu(false);
     router.replace("/");
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    router.push(`/products?q=${encodeURIComponent(query.trim())}`);
+    setSearchOpen(false);
+    setQuery("");
+  };
+
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--bg-card)]/95 backdrop-blur-md" dir="rtl">
-      <div className="container-main flex h-16 items-center justify-between gap-4">
+      <div className="container-main flex h-16 items-center justify-between gap-3">
 
         {/* الشعار */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
@@ -62,41 +82,60 @@ export default function Header() {
           </div>
         </Link>
 
+        {/* شريط البحث — ديسكتوب */}
+        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-sm mx-4">
+          <div className="relative w-full">
+            <HiMagnifyingGlass className="absolute end-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-base pointer-events-none"/>
+            <input
+              type="search" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="ابحث عن منتج..."
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-main)] pe-9 ps-4 py-2 text-sm text-[var(--text-1)] placeholder:text-[var(--text-muted)] focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-700 transition-all"
+            />
+          </div>
+        </form>
+
         {/* التنقل — ديسكتوب */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden lg:flex items-center gap-0.5 shrink-0">
           {NAV.map(({ href, label }) => (
             <Link key={href} href={href}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--text-2)] hover:bg-[var(--border)] hover:text-[var(--text-1)] transition-colors">
+              className="rounded-lg px-3 py-2 text-sm font-medium text-[var(--text-2)] hover:bg-[var(--border)] hover:text-[var(--text-1)] transition-colors whitespace-nowrap">
               {label}
             </Link>
           ))}
         </nav>
 
         {/* أيقونات يمين */}
-        <div className="flex items-center gap-1">
-          {/* رقم الهاتف — ديسكتوب */}
+        <div className="flex items-center gap-1 shrink-0">
+
+          {/* رقم الهاتف */}
           {settings.phone && (
             <a href={`tel:${settings.phone}`}
-              className="hidden lg:flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-2)] hover:border-brand-300 transition-colors"
+              className="hidden xl:flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-2)] hover:border-brand-300 transition-colors"
               dir="ltr">
-              <Phone size={12} className="text-brand-700"/>
+              <HiPhone className="text-brand-700 text-sm"/>
               {settings.phone}
             </a>
           )}
+
+          {/* بحث — جوال */}
+          <button onClick={() => setSearchOpen(!searchOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors md:hidden">
+            <HiMagnifyingGlass className="text-lg"/>
+          </button>
 
           {/* Dark Mode */}
           {mounted && (
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors">
-              {theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}
+              {theme === "dark" ? <HiSun className="text-lg"/> : <HiMoon className="text-lg"/>}
             </button>
           )}
 
           {/* السلة */}
           <button onClick={toggleCart}
             className="relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors">
-            <ShoppingCart size={18}/>
+            <HiShoppingCart className="text-lg"/>
             {count > 0 && (
               <span className="absolute -top-0.5 -end-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-accent-500 text-[9px] font-bold text-brand-900">
                 {count > 9 ? "9+" : count}
@@ -114,7 +153,7 @@ export default function Header() {
               {userMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setUserMenu(false)}/>
-                  <div className="absolute end-0 top-11 z-20 min-w-44 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-1.5 shadow-xl">
+                  <div className="absolute end-0 top-11 z-20 min-w-48 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] py-1.5 shadow-xl">
                     <div className="border-b border-[var(--border)] px-4 py-2.5 mb-1">
                       <p className="text-sm font-semibold text-[var(--text-1)] truncate">
                         {profile?.full_name ?? "مستخدم"}
@@ -122,20 +161,21 @@ export default function Header() {
                       <p className="text-xs text-[var(--text-muted)] truncate">{user.email}</p>
                     </div>
                     {[
-                      { href:"/account",           label:"حسابي" },
-                      { href:"/account/orders",    label:"طلباتي" },
-                      { href:"/account/profile",   label:"الملف الشخصي" },
-                      { href:"/account/addresses", label:"عناوين التوصيل" },
-                    ].map(({ href, label }) => (
+                      { href:"/account",           label:"حسابي",             icon:"🏠" },
+                      { href:"/account/orders",    label:"طلباتي",            icon:"📦" },
+                      { href:"/account/wishlist",  label:"المفضلة",           icon:"❤️" },
+                      { href:"/account/profile",   label:"الملف الشخصي",     icon:"👤" },
+                      { href:"/account/addresses", label:"عناوين التوصيل",   icon:"📍" },
+                    ].map(({ href, label, icon }) => (
                       <Link key={href} href={href} onClick={() => setUserMenu(false)}
-                        className="block px-4 py-2 text-sm text-[var(--text-1)] hover:bg-[var(--border)] transition-colors">
-                        {label}
+                        className="flex items-center gap-2.5 px-4 py-2 text-sm text-[var(--text-1)] hover:bg-[var(--border)] transition-colors">
+                        <span className="text-base">{icon}</span>{label}
                       </Link>
                     ))}
                     <div className="border-t border-[var(--border)] mt-1 pt-1">
                       <button onClick={handleSignOut}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                        <LogOut size={13}/> تسجيل الخروج
+                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                        <HiArrowRightOnRectangle className="text-base"/> تسجيل الخروج
                       </button>
                     </div>
                   </div>
@@ -145,35 +185,63 @@ export default function Header() {
           ) : (
             <Link href="/login"
               className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors">
-              <User size={18}/>
+              <HiUser className="text-lg"/>
             </Link>
           )}
 
           {/* قائمة جوال */}
           <button onClick={() => setMenuOpen(!menuOpen)}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors md:hidden">
-            {menuOpen ? <X size={18}/> : <Menu size={18}/>}
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors lg:hidden">
+            {menuOpen ? <HiXMark className="text-lg"/> : <HiBars3 className="text-lg"/>}
           </button>
         </div>
       </div>
 
+      {/* شريط البحث — جوال */}
+      {searchOpen && (
+        <div className="md:hidden border-t border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+          <form onSubmit={handleSearch}>
+            <div className="relative">
+              <HiMagnifyingGlass className="absolute end-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-base pointer-events-none"/>
+              <input
+                ref={searchRef}
+                type="search" value={query} onChange={e => setQuery(e.target.value)}
+                placeholder="ابحث عن منتج..."
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-main)] pe-9 ps-4 py-2.5 text-sm text-[var(--text-1)] placeholder:text-[var(--text-muted)] focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-200 dark:focus:ring-brand-700 transition-all"
+              />
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* القائمة المنسدلة للجوال */}
       {menuOpen && (
-        <div className="md:hidden border-t border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 space-y-1">
+        <div className="lg:hidden border-t border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 space-y-1">
           {NAV.map(({ href, label }) => (
             <Link key={href} href={href} onClick={() => setMenuOpen(false)}
               className="block rounded-lg px-3 py-2.5 text-sm font-medium text-[var(--text-1)] hover:bg-[var(--border)] transition-colors">
               {label}
             </Link>
           ))}
-          {settings.phone && (
-            <a href={`tel:${settings.phone}`}
-              className="flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--text-2)] hover:bg-[var(--border)] rounded-lg transition-colors"
-              dir="ltr">
-              <Phone size={14} className="text-brand-700"/>
-              {settings.phone}
-            </a>
-          )}
+          <div className="pt-2 flex flex-col gap-2">
+            {settings.phone && (
+              <a href={`tel:${settings.phone}`}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-2)] hover:bg-[var(--border)] rounded-lg transition-colors"
+                dir="ltr">
+                <HiPhone className="text-brand-700"/>
+                {settings.phone}
+              </a>
+            )}
+            {settings.whatsapp && (
+              <a href={`https://wa.me/${settings.whatsapp.replace(/[^0-9]/g,"")}`}
+                target="_blank" rel="noreferrer"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-2)] hover:bg-[var(--border)] rounded-lg transition-colors"
+                dir="ltr">
+                <FaWhatsapp className="text-green-500"/>
+                واتساب
+              </a>
+            )}
+          </div>
         </div>
       )}
     </header>

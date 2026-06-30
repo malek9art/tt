@@ -3,6 +3,7 @@ import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import CartDrawer from "@/components/cart/CartDrawer";
 import AuthProvider from "@/components/auth/AuthProvider";
+import ToastContainer from "@/components/ui/Toast";
 import "./globals.css";
 
 const fontArabic = IBM_Plex_Sans_Arabic({
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             {children}
             <CartDrawer />
+            <ToastContainer />
           </AuthProvider>
         </ThemeProvider>
       </body>
