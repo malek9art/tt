@@ -44,7 +44,7 @@ const iCls = "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)
 
 export default function CheckoutPage() {
   const router   = useRouter();
-  const { items, totalAmount, clearCart } = useCartStore();
+  const { items, totalPrice, clearCart } = useCartStore();
   const { user } = useAuthStore();
 
   const [step,          setStep]          = useState<Step>("info");
@@ -137,7 +137,7 @@ export default function CheckoutPage() {
   const removeCoupon = () => { setCoupon(null); setCouponCode(""); setCouponError(""); };
 
   // حساب الأسعار
-  const subtotal    = totalAmount();
+  const subtotal    = totalPrice();
   const shipping    = subtotal >= 50000 ? 0 : 2000;
   const discount    = coupon
     ? coupon.type === "percentage"
@@ -154,14 +154,14 @@ export default function CheckoutPage() {
     setLoading(true); setError("");
 
     const orderItems = items.map(i => ({
-      product_id:     i.product.id,
-      variant_id:     i.variant?.id ?? null,
-      name_snapshot:  i.product.name_ar,
-      sku_snapshot:   i.variant?.sku ?? i.product.sku ?? null,
-      attrs_snapshot: i.variant?.attributes ?? {},
-      price:          i.variant?.price ?? i.product.base_price,
+      product_id:     i.product_id,
+      variant_id:     i.variant_id,
+      name_snapshot:  i.name_ar,
+      sku_snapshot:   i.sku,
+      attrs_snapshot: i.attributes,
+      price:          i.price,
       quantity:       i.quantity,
-      subtotal:       (i.variant?.price ?? i.product.base_price) * i.quantity,
+      subtotal:       i.price * i.quantity,
     }));
 
     const res = await fetch("/api/orders", {
@@ -459,30 +459,28 @@ export default function CheckoutPage() {
                 </h2>
                 <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
                   {items.map(item => {
-                    const price = item.variant?.price ?? item.product.base_price;
-                    const img   = item.product.product_images?.find(i=>i.is_primary)?.url
-                               ?? item.product.product_images?.[0]?.url;
+                    const attrs = Object.values(item.attributes);
                     return (
-                      <div key={`${item.product.id}-${item.variant?.id??""}`}
+                      <div key={`${item.product_id}-${item.variant_id??""}`}
                         className="flex items-center gap-3">
                         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-[var(--border)] bg-brand-50">
-                          {img
-                            ? <Image src={img} alt={item.product.name_ar} fill sizes="48px" className="object-cover"/>
+                          {item.image
+                            ? <Image src={item.image} alt={item.name_ar} fill sizes="48px" className="object-cover"/>
                             : <div className="flex h-full items-center justify-center text-lg">📱</div>}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[var(--text-1)] line-clamp-1">
-                            {item.product.name_ar}
+                            {item.name_ar}
                           </p>
-                          {item.variant && (
+                          {attrs.length > 0 && (
                             <p className="text-xs text-[var(--text-muted)]">
-                              {Object.values(item.variant.attributes as Record<string,string>).join(" / ")}
+                              {attrs.join(" / ")}
                             </p>
                           )}
                           <p className="text-xs text-[var(--text-muted)]">× {item.quantity}</p>
                         </div>
                         <p className="text-sm font-bold text-[var(--text-1)] whitespace-nowrap">
-                          {formatPrice(price * item.quantity, item.product.currency)}
+                          {formatPrice(item.price * item.quantity, item.currency)}
                         </p>
                       </div>
                     );
