@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { notifyNewOrder } from "@/lib/notifications";
 
 interface OrderItem {
   product_id:     string;
@@ -96,43 +97,9 @@ export async function POST(request: NextRequest) {
     }
 
     const subtotal = body.items.reduce((s, i) => s + i.subtotal, 0);
+    const shipping = subtotal >= 50000 ? 0 : 2000;
+    const total    = subtotal + shipping;
     const currency = "YER";
-
-    // قراءة حد الشحن المجاني من الإعدادات
-    const { data: freeAboveSetting } = await supabase
-      .from("settings").select("value").eq("key", "shipping.free_above").maybeSingle();
-    const rawFree = freeAboveSetting?.value;
-    const freeAbove = rawFree
-      ? Number(typeof rawFree === "string" ? rawFree.replace(/^"|"$/g, "") : rawFree)
-      : 50000;
-    const shipping = subtotal >= freeAbove ? 0 : 2000;
-
-    // التحقق من الكوبون وحساب الخصم
-    let discount = 0;
-    let couponId: string | null = null;
-    if (body.coupon_code) {
-      const { data: coupon } = await supabase
-        .from("coupons")
-        .select("id, type, value, min_order_amount, max_uses, uses_count, expires_at, is_active")
-        .eq("code", body.coupon_code.trim().toUpperCase())
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (coupon) {
-        const expired  = coupon.expires_at && new Date(coupon.expires_at) < new Date();
-        const maxedOut = coupon.max_uses !== null && coupon.uses_count >= coupon.max_uses;
-        const belowMin = coupon.min_order_amount && subtotal < coupon.min_order_amount;
-
-        if (!expired && !maxedOut && !belowMin) {
-          discount = coupon.type === "percentage"
-            ? Math.round(subtotal * coupon.value / 100)
-            : Math.min(coupon.value, subtotal);
-          couponId = coupon.id;
-        }
-      }
-    }
-
-    const total = subtotal + shipping - discount;
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
@@ -141,13 +108,12 @@ export async function POST(request: NextRequest) {
         status:           "pending",
         payment_status:   "pending",
         subtotal,
-        discount_amount:  discount,
+        discount_amount:  0,
         shipping_fee:     shipping,
         total_amount:     total,
         currency,
         address_snapshot: body.address,
         notes:            body.notes || null,
-        coupon_id:        couponId,
       })
       .select("id, order_number")
       .single();
@@ -189,16 +155,14 @@ export async function POST(request: NextRequest) {
       idempotency_key: idempotencyKey ?? `order-${order.id}-${Date.now()}`,
     });
 
-    // تحديث عدد استخدامات الكوبون
-    if (couponId) {
-      await supabase.rpc("increment_coupon_uses", { coupon_id: couponId });
-    }
-
     // سجل الشحن
     await supabase.from("shipments").insert({
       order_id: order.id,
       status:   "pending",
     });
+
+    // إشعار الأدمن بالطلب الجديد (fire-and-forget)
+    notifyNewOrder(order.order_number, order.id, total).catch(() => {});
 
     return NextResponse.json({
       success:      true,

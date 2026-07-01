@@ -1,9 +1,10 @@
 "use client";
 import { useAuthStore } from "@/store/authStore";
 import { useTheme }     from "next-themes";
-import { Sun, Moon, Bell, LogOut } from "lucide-react";
+import { Sun, Moon, LogOut } from "lucide-react";
 import { useRouter }    from "next/navigation";
 import { useEffect, useState } from "react";
+import NotificationsBell from "@/components/admin/NotificationsBell";
 
 export default function AdminHeader() {
   const { theme, setTheme } = useTheme();
@@ -25,11 +26,7 @@ export default function AdminHeader() {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        {/* إشعارات */}
-        <button className="relative flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors">
-          <Bell size={16} />
-          <span className="absolute top-1 end-1 h-2 w-2 rounded-full bg-red-500" />
-        </button>
+        <NotificationsBell />
 
         {/* Dark Mode */}
         {m && (
