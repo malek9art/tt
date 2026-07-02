@@ -10,8 +10,9 @@ import {
 interface Notification {
   id:         string;
   type:       string;
-  title:      string;
-  body:       string;
+  title_ar:   string;
+  message_ar: string;
+  payload:    { link?: string } | null;
   link:       string | null;
   is_read:    boolean;
   created_at: string;
@@ -89,7 +90,7 @@ export default function NotificationsBell() {
 
   const handleClick = (n: Notification) => {
     if (!n.is_read) markOne(n.id);
-    if (n.link) { router.push(n.link); setOpen(false); }
+    if (n.payload?.link) { router.push(n.payload?.link); setOpen(false); }
   };
 
   return (
@@ -143,9 +144,9 @@ export default function NotificationsBell() {
                   <span className="mt-0.5 shrink-0 text-lg">{typeIcon(n.type)}</span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm leading-tight ${!n.is_read ? "font-semibold text-[var(--text-1)]" : "text-[var(--text-2)]"}`}>
-                      {n.title}
+                      {n.title_ar}
                     </p>
-                    <p className="mt-0.5 text-xs text-[var(--text-muted)] truncate">{n.body}</p>
+                    <p className="mt-0.5 text-xs text-[var(--text-muted)] truncate">{n.message_ar}</p>
                     <p className="mt-1 text-[10px] text-[var(--text-muted)]">{timeAgo(n.created_at)}</p>
                   </div>
                   {!n.is_read && (

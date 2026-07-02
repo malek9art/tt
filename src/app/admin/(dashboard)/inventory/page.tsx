@@ -220,7 +220,8 @@ export default function InventoryPage() {
               <p>• يجب أن يحتوي الملف على عمود <strong>SKU</strong></p>
               <p>• الأعمدة المدعومة: الكمية، الموقع، حد إعادة الطلب، كمية إعادة الطلب</p>
               <p>• صيغ مقبولة: CSV أو XLSX (محوّل لـ CSV)</p>
-              <p>• <a href="/api/admin/inventory/export" className="underline">حمّل ملف التصدير</a> كنموذج للاستيراد</p>
+              <p>• <a href="/api/admin/inventory/template" className="underline font-semibold">📥 حمّل قالب الإكسل الجاهز</a> — عدّل الكميات ثم استورده</p>
+              <p>• أو <a href="/api/admin/inventory/export" className="underline">حمّل ملف التصدير الكامل</a> كنموذج</p>
             </div>
 
             <div

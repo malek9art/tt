@@ -47,6 +47,10 @@ export default function DriverDetailPage() {
   const [loading,    setLoading]    = useState(true);
   const [saving,     setSaving]     = useState(false);
   const [saved,      setSaved]      = useState(false);
+  const [pwLoading,  setPwLoading]  = useState(false);
+  const [newPw,      setNewPw]      = useState("");
+  const [pwCopied,   setPwCopied]   = useState(false);
+  const [acctBusy,   setAcctBusy]   = useState(false);
   const [form, setForm] = useState({
     vehicle_type:"motorcycle", coverage_zone:"تعز",
     max_orders:5, phone:"", notes:"", is_active:true,
@@ -207,6 +211,57 @@ export default function DriverDetailPage() {
                   : <><ToggleLeft  size={22} className="text-gray-400"/>  <span className="text-[var(--text-muted)]">معطّل</span></>}
               </button>
             </div>
+          </div>
+
+          {/* الحساب والدخول */}
+          <div className="card-base p-5 space-y-4">
+            <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">الحساب والدخول</h2>
+            <p className="text-xs text-[var(--text-muted)]">
+              المندوب لا يستطيع استعادة كلمة المرور بنفسه — عيّنها من هنا وشاركها معه.
+            </p>
+            <button
+              onClick={async () => {
+                setPwLoading(true); setNewPw(""); setPwCopied(false);
+                const res = await fetch(`/api/admin/users/${id}/credentials`, { method: "POST",
+                  headers: { "Content-Type": "application/json" }, body: "{}" });
+                const d = await res.json();
+                setPwLoading(false);
+                if (res.ok) setNewPw(d.password);
+              }}
+              disabled={pwLoading}
+              className="btn-ghost border border-[var(--border)] w-full justify-center text-sm">
+              {pwLoading ? "جاري التوليد..." : "🔑 توليد كلمة مرور جديدة"}
+            </button>
+            {newPw && (
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 space-y-2">
+                <p className="text-xs text-amber-700 dark:text-amber-300">انسخها الآن — لن تظهر مرة أخرى:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-lg bg-white dark:bg-black/30 px-3 py-2 font-mono text-sm text-[var(--text-1)]" dir="ltr">{newPw}</code>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(newPw); setPwCopied(true); setTimeout(() => setPwCopied(false), 2000); }}
+                    className="rounded-lg bg-brand-700 text-white px-3 py-2 text-xs font-semibold">
+                    {pwCopied ? "✓ نُسخت" : "نسخ"}
+                  </button>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={async () => {
+                setAcctBusy(true);
+                const next = !form.is_active;
+                const res = await fetch(`/api/admin/users/${id}/credentials`, { method: "PATCH",
+                  headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: next }) });
+                if (res.ok) setForm(f => ({ ...f, is_active: next }));
+                setAcctBusy(false);
+              }}
+              disabled={acctBusy}
+              className={`w-full justify-center rounded-xl py-2.5 text-sm font-semibold transition-colors ${
+                form.is_active
+                  ? "bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20"
+                  : "bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20"
+              }`}>
+              {acctBusy ? "..." : form.is_active ? "⛔ تعطيل الحساب (منع الدخول)" : "✅ تنشيط الحساب"}
+            </button>
           </div>
 
           <div className="card-base p-5 space-y-4">

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -45,6 +46,14 @@ export default function ProductDetails({ product, related }: Props) {
   const attrKeys = variants.length > 0
     ? Object.keys(variants[0].attributes as Record<string, string>)
     : [];
+
+  const router = useRouter();
+
+  const handleBuyNow = () => {
+    if (!inStock) return;
+    handleAddToCart();
+    router.push("/checkout");
+  };
 
   const handleAddToCart = () => {
     if (!inStock) return;
@@ -261,6 +270,28 @@ export default function ProductDetails({ product, related }: Props) {
                 }`}>
                 <HiHeart className="text-xl"/>
               </button>
+            </div>
+
+            {/* اشترِ الآن */}
+            {inStock && (
+              <button onClick={handleBuyNow}
+                className="mb-4 w-full rounded-xl border-2 border-brand-700 py-3 text-base font-bold text-brand-700 dark:text-accent-400 dark:border-accent-500 hover:bg-brand-700 hover:text-white transition-all active:scale-[0.98]">
+                ⚡ اشترِ الآن — توصيل سريع
+              </button>
+            )}
+
+            {/* شريط الثقة */}
+            <div className="mb-5 grid grid-cols-3 gap-2 text-center">
+              {[
+                { icon: "🚚", label: "توصيل لكل المحافظات" },
+                { icon: "💵", label: "الدفع عند الاستلام" },
+                { icon: "✅", label: "منتجات أصلية 100%" },
+              ].map(b => (
+                <div key={b.label} className="rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-2 py-3">
+                  <p className="text-xl mb-1">{b.icon}</p>
+                  <p className="text-[11px] font-medium text-[var(--text-2)] leading-tight">{b.label}</p>
+                </div>
+              ))}
             </div>
 
             {/* حالة التوفر */}

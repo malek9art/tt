@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/store/authStore";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { User, ShoppingBag, MapPin, Heart, LogOut, ChevronLeft } from "lucide-react";
+import { User, ShoppingBag, MapPin, Heart, LogOut, ChevronLeft, Bell } from "lucide-react";
 
 const NAV = [
   { href:"/account",            label:"نظرة عامة",      icon:User,        exact:true },
@@ -13,6 +13,7 @@ const NAV = [
   { href:"/account/profile",    label:"الملف الشخصي",   icon:User },
   { href:"/account/addresses",  label:"عناوين التوصيل", icon:MapPin },
   { href:"/account/wishlist",   label:"قائمة الأمنيات", icon:Heart },
+  { href:"/account/notifications", label:"الإشعارات",    icon:Bell },
 ];
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {

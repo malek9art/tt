@@ -1,15 +1,9 @@
 "use client";
 import { useState } from "react";
-import { createBrowserClient } from "@supabase/ssr";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { HiEnvelope, HiCheckCircle, HiArrowLeft, HiKey } from "react-icons/hi2";
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 export default function ForgotPasswordPage() {
   const [email,   setEmail]   = useState("");
@@ -23,13 +17,15 @@ export default function ForgotPasswordPage() {
     }
     setLoading(true); setError("");
 
-    const { error: err } = await supabase.auth.resetPasswordForEmail(
-      email.trim().toLowerCase(),
-      { redirectTo: `${window.location.origin}/reset-password` },
-    );
+    const res = await fetch("/api/auth/forgot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+    const d = await res.json();
 
     setLoading(false);
-    if (err) setError("تعذّر الإرسال — تحقق من البريد وحاول مجدداً");
+    if (!res.ok) setError(d.error ?? "تعذّر الإرسال — تحقق من البريد وحاول مجدداً");
     else setSent(true);
   };
 

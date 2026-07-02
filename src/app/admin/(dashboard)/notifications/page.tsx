@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import {
   HiBell, HiCheckCircle, HiTrash, HiShoppingCart,
   HiCurrencyDollar, HiXMark, HiExclamationTriangle,
-  HiCube, HiInformationCircle, HiArrowLeft,
+  HiCube, HiInformationCircle, HiArrowLeft, HiPaperAirplane,
 } from "react-icons/hi2";
 
 interface Notification {
   id:         string;
   type:       string;
-  title:      string;
-  body:       string;
-  link:       string | null;
+  title_ar:   string;
+  message_ar: string;
+  payload:    { link?: string } | null;
   is_read:    boolean;
   created_at: string;
 }
@@ -121,7 +121,7 @@ export default function NotificationsPage() {
       });
       setItems(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
     }
-    if (n.link) router.push(n.link);
+    if (n.payload?.link) router.push(n.payload?.link);
   };
 
   const filterButtons: { v: typeof filter; l: string }[] = [
@@ -131,6 +131,31 @@ export default function NotificationsPage() {
     { v: "stock_low", l: "مخزون منخفض" },
     { v: "stock_out", l: "نفد المخزون" },
   ];
+
+  const [composer,   setComposer]   = useState(false);
+  const [cAudience,  setCAudience]  = useState<"all_customers"|"all_drivers">("all_customers");
+  const [cTitle,     setCTitle]     = useState("");
+  const [cMsg,       setCMsg]       = useState("");
+  const [cSending,   setCSending]   = useState(false);
+  const [cResult,    setCResult]    = useState("");
+
+  const sendBroadcast = async () => {
+    if (!cTitle.trim() || !cMsg.trim()) { setCResult("⚠ العنوان والرسالة مطلوبان"); return; }
+    setCSending(true); setCResult("");
+    const res = await fetch("/api/admin/notifications/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audience: cAudience, title: cTitle.trim(), message: cMsg.trim() }),
+    });
+    const d = await res.json();
+    setCSending(false);
+    if (res.ok) {
+      setCResult(`✓ أُرسل إلى ${d.sent} مستخدم`);
+      setCTitle(""); setCMsg("");
+    } else {
+      setCResult(`⚠ ${d.error ?? "فشل الإرسال"}`);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -156,6 +181,10 @@ export default function NotificationsPage() {
             </>
           ) : (
             <>
+              <button onClick={() => setComposer(!composer)}
+                className="btn-primary gap-1.5 text-sm">
+                <HiPaperAirplane className="text-sm"/> إرسال إشعار
+              </button>
               {unread > 0 && (
                 <button onClick={markAll}
                   className="btn-ghost border border-[var(--border)] gap-1.5 text-sm">
@@ -185,7 +214,38 @@ export default function NotificationsPage() {
 
       {/* List */}
       <div className="card-base overflow-hidden">
-        {loading ? (
+        {/* Composer */}
+      {composer && (
+        <div className="card-base p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-[var(--text-1)]">إرسال إشعار جديد</h2>
+            <button onClick={() => setComposer(false)} className="text-[var(--text-muted)] hover:text-[var(--text-1)]"><HiXMark/></button>
+          </div>
+          <div className="flex rounded-xl border border-[var(--border)] overflow-hidden w-fit">
+            <button onClick={() => setCAudience("all_customers")}
+              className={`px-4 py-2 text-xs font-semibold transition-colors ${cAudience === "all_customers" ? "bg-brand-700 text-white" : "bg-[var(--bg-page)] text-[var(--text-2)]"}`}>
+              جميع العملاء
+            </button>
+            <button onClick={() => setCAudience("all_drivers")}
+              className={`px-4 py-2 text-xs font-semibold transition-colors ${cAudience === "all_drivers" ? "bg-brand-700 text-white" : "bg-[var(--bg-page)] text-[var(--text-2)]"}`}>
+              جميع المناديب
+            </button>
+          </div>
+          <input value={cTitle} onChange={e => setCTitle(e.target.value)} placeholder="عنوان الإشعار"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500"/>
+          <textarea value={cMsg} onChange={e => setCMsg(e.target.value)} rows={3} placeholder="نص الرسالة…"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 resize-none"/>
+          <div className="flex items-center gap-3">
+            <button onClick={sendBroadcast} disabled={cSending}
+              className="btn-primary gap-1.5">
+              <HiPaperAirplane className="text-sm"/> {cSending ? "جاري الإرسال..." : "إرسال"}
+            </button>
+            {cResult && <p className="text-sm text-[var(--text-2)]">{cResult}</p>}
+          </div>
+        </div>
+      )}
+
+      {loading ? (
           <div className="p-5 space-y-3">
             {[1,2,3,4,5].map(i => <div key={i} className="skeleton h-16 w-full rounded-lg" />)}
           </div>
@@ -219,7 +279,7 @@ export default function NotificationsPage() {
                   <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleClick(n)}>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className={`text-sm leading-tight ${!n.is_read ? "font-bold text-[var(--text-1)]" : "font-medium text-[var(--text-2)]"}`}>
-                        {n.title}
+                        {n.title_ar}
                       </p>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${meta.color} font-medium`}>
                         {meta.label}
@@ -228,12 +288,12 @@ export default function NotificationsPage() {
                         <span className="h-2 w-2 rounded-full bg-brand-700 inline-block" />
                       )}
                     </div>
-                    <p className="mt-0.5 text-sm text-[var(--text-muted)]">{n.body}</p>
+                    <p className="mt-0.5 text-sm text-[var(--text-muted)]">{n.message_ar}</p>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">{timeAgo(n.created_at)}</p>
                   </div>
 
                   {/* Arrow if has link */}
-                  {n.link && (
+                  {n.payload?.link && (
                     <button onClick={() => handleClick(n)}
                       className="mt-1 shrink-0 text-[var(--text-muted)] hover:text-brand-700 transition-colors">
                       <HiArrowLeft className="text-sm" />
