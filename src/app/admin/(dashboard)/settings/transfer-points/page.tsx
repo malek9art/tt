@@ -16,23 +16,16 @@ interface Point {
   display_order: number;
 }
 
-const PROVIDERS = [
-  { code: "kuraimi", label: "الكريمي" },
-  { code: "qutaibi", label: "القطيبي" },
-  { code: "floosak",  label: "فلوسك" },
-  { code: "onecash",  label: "وان كاش" },
-  { code: "jawali",   label: "جوالي" },
-  { code: "jeeb",     label: "جيب" },
-  { code: "yemenmobile", label: "يمن موبايل" },
-];
-
 const emptyForm = {
   provider_code: "kuraimi", label: "", phone: "",
   account_name: "", notes: "", is_active: true, display_order: 0,
 };
 
+interface NetworkOption { code: string; label: string; }
+
 export default function TransferPointsPage() {
   const [points,    setPoints]    = useState<Point[]>([]);
+  const [networks,  setNetworks]  = useState<NetworkOption[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [modal,     setModal]     = useState(false);
   const [editing,   setEditing]   = useState<Point | null>(null);
@@ -42,11 +35,23 @@ export default function TransferPointsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/transfer-points");
-    const d   = await res.json();
+    const [ptsRes, provRes] = await Promise.all([
+      fetch("/api/admin/transfer-points"),
+      fetch("/api/admin/settings/payment-providers"),
+    ]);
+    const d = await ptsRes.json();
     setPoints(d.points ?? []);
+    const pd = await provRes.json().catch(() => ({ providers: [] }));
+    const nets: NetworkOption[] = (pd.providers ?? [])
+      .filter((p: { metadata?: { type?: string } }) => p.metadata?.type === "transfer_point")
+      .map((p: { code: string; name: string; metadata?: { name_ar?: string } }) => ({
+        code: p.code, label: p.metadata?.name_ar ?? p.name,
+      }));
+    setNetworks(nets.length > 0 ? nets : [{ code: "kuraimi", label: "الكريمي" }, { code: "qutaibi", label: "القطيبي" }]);
     setLoading(false);
   }, []);
+
+  const PROVIDERS = networks;
 
   useEffect(() => { load(); }, [load]);
 
@@ -106,10 +111,18 @@ export default function TransferPointsPage() {
     load();
   };
 
-  const grouped = PROVIDERS.map(p => ({
+  // Include any network codes found in existing points but missing from the providers list
+  const allNetworks = [
+    ...PROVIDERS,
+    ...[...new Set(points.map(pt => pt.provider_code))]
+      .filter(c => !PROVIDERS.some(p => p.code === c))
+      .map(c => ({ code: c, label: c })),
+  ];
+
+  const grouped = allNetworks.map(p => ({
     ...p,
     items: points.filter(pt => pt.provider_code === p.code),
-  })).filter(g => g.items.length > 0 || true);
+  }));
 
   return (
     <div className="space-y-6 max-w-3xl">

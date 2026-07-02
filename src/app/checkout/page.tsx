@@ -43,9 +43,18 @@ interface Coupon {
 interface Provider {
   code: string; name: string; metadata: {
     icon: string; name_ar: string; description: string;
-    type: string; confirmation: string;
+    type: string; confirmation: string; logo_url?: string;
   };
 }
+
+// Checkout payment sections — grouped by provider type
+const PAYMENT_SECTIONS: Array<{ key: string; title: string; emoji: string; types: string[] }> = [
+  { key:"cod",     title:"الدفع عند الاستلام",   emoji:"💵", types:["cod"] },
+  { key:"wallets", title:"المحافظ الإلكترونية",  emoji:"📱", types:["manual_wallet"] },
+  { key:"points",  title:"شبكات ونقاط التحويل",  emoji:"🏦", types:["transfer_point"] },
+  { key:"banks",   title:"التحويل البنكي",        emoji:"🏛️", types:["bank_transfer"] },
+  { key:"cards",   title:"البطاقات الدولية",      emoji:"💳", types:["stripe"] },
+];
 
 interface TransferPoint { id: string; label: string; phone: string; accountName?: string; notes?: string; }
 
@@ -549,39 +558,60 @@ export default function CheckoutPage() {
                       {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-[var(--border)] animate-pulse"/>)}
                     </div>
                   ) : (
-                    <div className="space-y-2.5">
-                      {providers.map(p => {
-                        const meta = p.metadata ?? {} as Provider["metadata"];
-                        const isManual = meta.confirmation === "manual";
+                    <div className="space-y-5">
+                      {PAYMENT_SECTIONS.map(section => {
+                        const list = providers.filter(p => section.types.includes(p.metadata?.type ?? ""));
+                        if (list.length === 0) return null;
                         return (
-                          <label key={p.code}
-                            className={`flex items-center gap-4 rounded-xl border p-4 cursor-pointer transition-all ${
-                              providerCode === p.code
-                                ? "border-brand-500 bg-brand-50 dark:bg-brand-900/30"
-                                : "border-[var(--border)] hover:border-brand-300"
-                            }`}>
-                            <input type="radio" name="provider" value={p.code}
-                              checked={providerCode === p.code}
-                              onChange={() => setProviderCode(p.code)}
-                              className="h-4 w-4 text-brand-700 shrink-0"/>
-                            <span className="text-2xl shrink-0">{PROVIDER_EMOJIS[p.code] ?? "💰"}</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-semibold text-sm text-[var(--text-1)]">{meta.name_ar ?? p.name}</p>
-                                {isManual && (
-                                  <span className="text-[10px] rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5">
-                                    يتطلب تأكيد يدوي
-                                  </span>
-                                )}
-                                {meta.confirmation === "on_delivery" && (
-                                  <span className="text-[10px] rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5">
-                                    ادفع عند الاستلام
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{meta.description}</p>
+                          <div key={section.key} className="rounded-2xl border border-[var(--border)] overflow-hidden">
+                            <div className="flex items-center gap-2 bg-[var(--bg-page)] px-4 py-2.5 border-b border-[var(--border)]">
+                              <span className="text-lg">{section.emoji}</span>
+                              <h3 className="text-sm font-bold text-[var(--text-1)]">{section.title}</h3>
+                              <span className="text-[10px] text-[var(--text-muted)] mr-auto">{list.length}</span>
                             </div>
-                          </label>
+                            <div className="p-3 space-y-2">
+                              {list.map(p => {
+                                const meta = p.metadata ?? {} as Provider["metadata"];
+                                const isManual = meta.confirmation === "manual";
+                                return (
+                                  <label key={p.code}
+                                    className={`flex items-center gap-3.5 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                                      providerCode === p.code
+                                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/30"
+                                        : "border-[var(--border)] hover:border-brand-300"
+                                    }`}>
+                                    <input type="radio" name="provider" value={p.code}
+                                      checked={providerCode === p.code}
+                                      onChange={() => setProviderCode(p.code)}
+                                      className="h-4 w-4 text-brand-700 shrink-0"/>
+                                    {meta.logo_url ? (
+                                      <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-white border border-[var(--border)]">
+                                        <Image src={meta.logo_url} alt={meta.name_ar ?? p.name} fill className="object-contain p-0.5" unoptimized/>
+                                      </span>
+                                    ) : (
+                                      <span className="text-2xl shrink-0">{PROVIDER_EMOJIS[p.code] ?? "💰"}</span>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-semibold text-sm text-[var(--text-1)]">{meta.name_ar ?? p.name}</p>
+                                        {isManual && (
+                                          <span className="text-[10px] rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5">
+                                            يتطلب تأكيد يدوي
+                                          </span>
+                                        )}
+                                        {meta.confirmation === "on_delivery" && (
+                                          <span className="text-[10px] rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5">
+                                            ادفع عند الاستلام
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{meta.description}</p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
