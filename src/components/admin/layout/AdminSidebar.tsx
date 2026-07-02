@@ -5,6 +5,7 @@ import {
   HiSquares2X2, HiArchiveBox, HiShoppingBag, HiUsers,
   HiBuildingStorefront, HiTag, HiChartBar, HiTruck,
   HiCog6Tooth, HiChevronLeft, HiXMark, HiBars3, HiPhoto,
+  HiBell, HiBanknotes,
 } from "react-icons/hi2";
 import { useState } from "react";
 
@@ -12,11 +13,13 @@ const NAV = [
   { href:"/admin",              label:"لوحة التحكم",    icon:HiSquares2X2,        exact:true },
   { href:"/admin/products",     label:"المنتجات",        icon:HiArchiveBox },
   { href:"/admin/orders",       label:"الطلبات",         icon:HiShoppingBag },
+  { href:"/admin/payments",     label:"المدفوعات",       icon:HiBanknotes },
   { href:"/admin/customers",    label:"العملاء",         icon:HiUsers },
   { href:"/admin/inventory",    label:"المخزون",         icon:HiBuildingStorefront },
   { href:"/admin/analytics",    label:"التحليلات",       icon:HiChartBar },
   { href:"/admin/marketing",    label:"التسويق والكوبونات",icon:HiTag },
   { href:"/admin/banners",      label:"البنرات الإعلانية",icon:HiPhoto },
+  { href:"/admin/notifications",label:"الإشعارات",       icon:HiBell },
   { href:"/admin/drivers",      label:"المناديب",        icon:HiTruck },
   { href:"/admin/settings",     label:"الإعدادات",       icon:HiCog6Tooth },
 ];

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { notifyNewOrder } from "@/lib/notifications";
 
 interface OrderItem {
   product_id:     string;
@@ -199,6 +200,9 @@ export async function POST(request: NextRequest) {
       order_id: order.id,
       status:   "pending",
     });
+
+    // إشعار الأدمن بالطلب الجديد (fire-and-forget)
+    notifyNewOrder(order.order_number, order.id, total).catch(() => {});
 
     return NextResponse.json({
       success:      true,
