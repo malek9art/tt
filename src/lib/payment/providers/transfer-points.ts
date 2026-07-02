@@ -9,6 +9,7 @@ export interface TransferPoint {
   phone: string;
   accountName?: string;
   notes?: string;
+  iconUrl?: string;
 }
 
 // Adapter for money-transfer networks (Kuraimi, Qutaibi…).

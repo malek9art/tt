@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as {
     provider_code: string; label: string; phone: string;
     account_name?: string; notes?: string; display_order?: number;
+    icon_url?: string;
   };
 
   if (!body.provider_code || !body.label || !body.phone) {
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
       phone:         body.phone,
       account_name:  body.account_name ?? null,
       notes:         body.notes ?? null,
+      icon_url:      body.icon_url ?? null,
       display_order: body.display_order ?? 0,
     })
     .select()

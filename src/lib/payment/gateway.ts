@@ -25,6 +25,19 @@ function serviceClient() {
 
 // ── Provider Registry ────────────────────────────────
 
+// Build multi-currency accounts array from provider config keys
+function currencyAccounts(cfg: Record<string, string>) {
+  const defs = [
+    { key: "account_number_yer", currency: "YER", label: "ريال يمني" },
+    { key: "account_number_sar", currency: "SAR", label: "ريال سعودي" },
+    { key: "account_number_usd", currency: "USD", label: "دولار أمريكي" },
+  ];
+  const accounts = defs
+    .filter(d => cfg[d.key]?.trim())
+    .map(d => ({ currency: d.currency, label: d.label, number: cfg[d.key].trim() }));
+  return accounts.length > 0 ? accounts : undefined;
+}
+
 async function buildProvider(code: string): Promise<IPaymentProvider | null> {
   const sb = serviceClient();
 
@@ -48,6 +61,7 @@ async function buildProvider(code: string): Promise<IPaymentProvider | null> {
     return new ManualWalletProvider(code, meta.name_ar ?? p.name, {
       accountNumber: cfg.account_number,
       accountName:   cfg.account_name,
+      accounts:      currencyAccounts(cfg),
       instructions:  cfg.instructions ? JSON.parse(cfg.instructions) : undefined,
     });
   }
@@ -55,7 +69,7 @@ async function buildProvider(code: string): Promise<IPaymentProvider | null> {
   if (type === "transfer_point") {
     const { data: pts } = await sb
       .from("transfer_points")
-      .select("id, label, phone, account_name, notes")
+      .select("id, label, phone, account_name, notes, icon_url")
       .eq("provider_code", code)
       .eq("is_active", true)
       .order("display_order");
@@ -66,6 +80,7 @@ async function buildProvider(code: string): Promise<IPaymentProvider | null> {
       phone:       r.phone,
       accountName: r.account_name ?? undefined,
       notes:       r.notes        ?? undefined,
+      iconUrl:     r.icon_url     ?? undefined,
     }));
 
     return new TransferPointsProvider(code, meta.name_ar ?? p.name, points);
@@ -75,11 +90,13 @@ async function buildProvider(code: string): Promise<IPaymentProvider | null> {
     return new ManualWalletProvider(code, meta.name_ar ?? p.name, {
       accountNumber: cfg.account_number,
       accountName:   cfg.account_name,
+      bankName:      cfg.bank_name,
+      accounts:      currencyAccounts(cfg),
       instructions: [
-        `حوّل المبلغ إلى حساب: ${cfg.account_number ?? ""}`,
-        `بنك: ${cfg.bank_name ?? ""}`,
-        "أرسل صورة الإيصال عبر واتساب",
-        "سيتم تأكيد طلبك خلال 24 ساعة",
+        `حوّل المبلغ إلى حساب البنك: ${cfg.bank_name ?? ""}`,
+        "اختر رقم الحساب المناسب لعملة التحويل",
+        "بعد التحويل أرفق صورة الإيصال أو نص الإشعار في نفس الصفحة",
+        "سيبقى طلبك قيد المراجعة حتى يتأكد فريقنا من استلام المبلغ",
       ],
     });
   }

@@ -8,6 +8,7 @@ import Image   from "next/image";
 import Link    from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
+import QRCode from "react-qr-code";
 import { formatPrice } from "@/lib/api";
 import {
   HiMapPin, HiPhone, HiUser, HiChevronDown, HiCheckCircle,
@@ -56,7 +57,8 @@ const PAYMENT_SECTIONS: Array<{ key: string; title: string; emoji: string; types
   { key:"cards",   title:"البطاقات الدولية",      emoji:"💳", types:["stripe"] },
 ];
 
-interface TransferPoint { id: string; label: string; phone: string; accountName?: string; notes?: string; }
+interface TransferPoint { id: string; label: string; phone: string; accountName?: string; notes?: string; iconUrl?: string; }
+interface CurrencyAccount { currency: string; label: string; number: string; }
 
 const iCls = "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
 
@@ -94,6 +96,7 @@ function PaymentInstructions({
   const extra = instruction.extra as Record<string, unknown> | undefined;
   const points = (extra?.points ?? []) as TransferPoint[];
   const networkName = extra?.networkName as string | undefined;
+  const accounts = (extra?.accounts ?? []) as CurrencyAccount[];
 
   return (
     <div className="space-y-4">
@@ -111,8 +114,31 @@ function PaymentInstructions({
         </ol>
       )}
 
-      {/* تفاصيل الحساب (محافظ/بنوك) */}
-      {instruction.accountNumber && (
+      {/* حسابات متعددة العملات */}
+      {accounts.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-[var(--text-1)]">أرقام الحسابات حسب العملة:</p>
+          {accounts.map(acc => (
+            <div key={acc.currency}
+              className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-[var(--text-muted)]">{acc.label} ({acc.currency})</p>
+                <p className="font-bold text-brand-700 dark:text-accent-400 tracking-wider" dir="ltr">{acc.number}</p>
+              </div>
+              <CopyButton text={acc.number} />
+            </div>
+          ))}
+          {instruction.accountName && (
+            <p className="text-sm text-[var(--text-2)]">الاسم: {instruction.accountName}</p>
+          )}
+          {instruction.bankName && (
+            <p className="text-sm text-[var(--text-2)]">البنك: {instruction.bankName}</p>
+          )}
+        </div>
+      )}
+
+      {/* تفاصيل الحساب (محافظ/بنوك) — حساب واحد */}
+      {accounts.length === 0 && instruction.accountNumber && (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-page)] p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-[var(--text-muted)]">رقم الحساب / المحفظة</span>
@@ -152,24 +178,115 @@ function PaymentInstructions({
           </p>
           {points.map(pt => (
             <div key={pt.id}
-              className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-[var(--text-1)] truncate">{pt.label}</p>
-                {pt.accountName && (
-                  <p className="text-xs text-[var(--text-muted)]">{pt.accountName}</p>
-                )}
-                {pt.notes && (
-                  <p className="text-xs text-[var(--text-muted)]">{pt.notes}</p>
-                )}
+              className="rounded-xl border border-[var(--border)] bg-[var(--bg-page)] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  {pt.iconUrl ? (
+                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-white border border-[var(--border)]">
+                      <Image src={pt.iconUrl} alt={pt.label} fill className="object-contain p-0.5" unoptimized/>
+                    </span>
+                  ) : (
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 dark:bg-brand-900/30 text-lg">🏦</span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[var(--text-1)] truncate">{pt.label}</p>
+                    {pt.accountName && <p className="text-xs text-[var(--text-muted)]">{pt.accountName}</p>}
+                    {pt.notes && <p className="text-xs text-[var(--text-muted)]">{pt.notes}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <p className="font-bold text-brand-700 dark:text-accent-400 text-sm" dir="ltr">{pt.phone}</p>
+                  <CopyButton text={pt.phone} />
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <p className="font-bold text-brand-700 dark:text-accent-400 text-sm" dir="ltr">{pt.phone}</p>
-                <CopyButton text={pt.phone} />
+              {/* باركود رقم النقطة */}
+              <div className="mt-3 flex items-center justify-center rounded-lg bg-white p-3">
+                <QRCode value={pt.phone} size={96} />
               </div>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ── Customer Receipt Attachment ──────────────────────
+function ReceiptAttach({ paymentId }: { paymentId: string }) {
+  const [file,    setFile]    = useState<File | null>(null);
+  const [note,    setNote]    = useState("");
+  const [sending, setSending] = useState(false);
+  const [done,    setDone]    = useState(false);
+  const [err,     setErr]     = useState("");
+
+  const submit = async () => {
+    if (!file && !note.trim()) { setErr("أرفق صورة الإيصال أو الصق نص الإشعار"); return; }
+    setSending(true); setErr("");
+
+    let receiptUrl: string | undefined;
+    if (file) {
+      const ext  = file.name.split(".").pop() ?? "jpg";
+      const path = `customer/${paymentId}-${Date.now()}.${ext}`;
+      const { error: upErr } = await sb.storage.from("payment-receipts").upload(path, file, {
+        upsert: true, contentType: file.type,
+      });
+      if (upErr) { setErr("فشل رفع الصورة — حاول مجدداً"); setSending(false); return; }
+      receiptUrl = sb.storage.from("payment-receipts").getPublicUrl(path).data.publicUrl;
+    }
+
+    const res = await fetch(`/api/payments/${paymentId}/receipt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ receiptUrl, note: note.trim() || undefined }),
+    });
+    const d = await res.json();
+    if (res.ok && d.success) setDone(true);
+    else setErr(d.error ?? "فشل الإرسال");
+    setSending(false);
+  };
+
+  if (done) {
+    return (
+      <div className="rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 flex items-start gap-3">
+        <HiCheckCircle className="text-2xl text-green-500 shrink-0 mt-0.5"/>
+        <div>
+          <p className="font-semibold text-green-700 dark:text-green-400">تم استلام إثبات التحويل</p>
+          <p className="text-sm text-green-600 dark:text-green-400 mt-0.5">
+            طلبك قيد المراجعة — سيتم تأكيده فور تحقق فريقنا من وصول المبلغ
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 border-t border-[var(--border)] pt-4">
+      <p className="text-sm font-semibold text-[var(--text-1)]">أرفق إثبات التحويل بعد إتمام العملية:</p>
+
+      <label className={`block w-full rounded-xl border-2 border-dashed px-4 py-4 text-sm text-center cursor-pointer transition-colors ${
+        file ? "border-green-400 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+             : "border-[var(--border)] text-[var(--text-muted)] hover:border-brand-400"
+      }`}>
+        <input type="file" accept="image/*,.pdf" className="hidden"
+          onChange={e => setFile(e.target.files?.[0] ?? null)}/>
+        📎 {file ? file.name : "صورة إيصال الإيداع / لقطة شاشة التحويل"}
+      </label>
+
+      <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
+        placeholder="أو الصق هنا نص الإشعار (SMS) الذي وصلك من خدمة الدفع…"
+        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors resize-none"/>
+
+      {err && <p className="text-xs text-red-500">{err}</p>}
+
+      <button onClick={submit} disabled={sending}
+        className="btn-primary w-full justify-center gap-2">
+        <HiCheckCircle className="text-base"/>
+        {sending ? "جاري الإرسال..." : "إرسال إثبات التحويل"}
+      </button>
+      <p className="text-[11px] text-[var(--text-muted)] text-center">
+        يبقى الطلب قيد المراجعة حتى تتأكد إدارة المتجر من استلام المبلغ
+      </p>
     </div>
   );
 }
@@ -188,6 +305,7 @@ export default function CheckoutPage() {
   const [orderId,        setOrderId]       = useState("");
   const [totalFinal,     setTotalFinal]    = useState(0);
   const [instruction,    setInstruction]   = useState<PaymentInstruction | null>(null);
+  const [paymentId,      setPaymentId]     = useState("");
   const [error,          setError]         = useState("");
   const [savedAddresses, setSavedAddresses]= useState<SavedAddress[]>([]);
   const [selectedAddr,   setSelectedAddr]  = useState<string|null>(null);
@@ -333,6 +451,7 @@ export default function CheckoutPage() {
     }
 
     clearCart();
+    setPaymentId(payData.paymentId ?? "");
     setInstruction(payData.instruction);
     setStep(payData.instruction?.type === "redirect" ? "processing" : "confirm");
     setLoading(false);
@@ -411,6 +530,9 @@ export default function CheckoutPage() {
                   orderNumber={orderNum}
                   amount={totalFinal}
                 />
+                {instruction.type === "transfer_details" && paymentId && (
+                  <ReceiptAttach paymentId={paymentId} />
+                )}
               </div>
             )}
 

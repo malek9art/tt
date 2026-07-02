@@ -59,13 +59,17 @@ const SECTIONS: Array<{
 
 const CONFIG_FIELDS: Record<string, Array<{ key: string; label: string; placeholder?: string }>> = {
   manual_wallet: [
-    { key: "account_number", label: "رقم المحفظة", placeholder: "7XXXXXXXX" },
-    { key: "account_name",   label: "اسم صاحب المحفظة", placeholder: "أحمد محمد" },
+    { key: "account_name",       label: "اسم صاحب المحفظة", placeholder: "أحمد محمد" },
+    { key: "account_number_yer", label: "رقم المحفظة — ريال يمني (YER)", placeholder: "7XXXXXXXX" },
+    { key: "account_number_sar", label: "رقم المحفظة — ريال سعودي (SAR)", placeholder: "7XXXXXXXX" },
+    { key: "account_number_usd", label: "رقم المحفظة — دولار أمريكي (USD)", placeholder: "7XXXXXXXX" },
   ],
   bank_transfer: [
-    { key: "account_number", label: "رقم الحساب البنكي", placeholder: "XXXX XXXX XXXX" },
-    { key: "account_name",   label: "اسم صاحب الحساب", placeholder: "مركز الأحمدي للجوالات" },
-    { key: "bank_name",      label: "اسم البنك",        placeholder: "بنك الكريمي" },
+    { key: "bank_name",          label: "اسم البنك",        placeholder: "بنك الكريمي" },
+    { key: "account_name",       label: "اسم صاحب الحساب", placeholder: "مركز الأحمدي للجوالات" },
+    { key: "account_number_yer", label: "رقم الحساب — ريال يمني (YER)", placeholder: "XXXX XXXX" },
+    { key: "account_number_sar", label: "رقم الحساب — ريال سعودي (SAR)", placeholder: "XXXX XXXX" },
+    { key: "account_number_usd", label: "رقم الحساب — دولار أمريكي (USD)", placeholder: "XXXX XXXX" },
   ],
   transfer_point: [],
   stripe: [],
@@ -313,10 +317,13 @@ export default function PaymentProvidersPage() {
                                 )}
                               </div>
                               {meta.description && <p className="text-xs text-[var(--text-muted)] mt-0.5">{meta.description}</p>}
-                              {p.config?.account_number && (
-                                <p className="text-xs text-[var(--text-2)] mt-1 font-mono" dir="ltr">
-                                  {p.config.account_number}{p.config.account_name && ` · ${p.config.account_name}`}
-                                </p>
+                              {(p.config?.account_number_yer || p.config?.account_number_sar || p.config?.account_number_usd || p.config?.account_number) && (
+                                <div className="text-xs text-[var(--text-2)] mt-1 font-mono space-y-0.5" dir="ltr">
+                                  {p.config.account_number     && <p>{p.config.account_number}</p>}
+                                  {p.config.account_number_yer && <p>YER: {p.config.account_number_yer}</p>}
+                                  {p.config.account_number_sar && <p>SAR: {p.config.account_number_sar}</p>}
+                                  {p.config.account_number_usd && <p>USD: {p.config.account_number_usd}</p>}
+                                </div>
                               )}
                             </div>
                           </div>

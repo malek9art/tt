@@ -1,9 +1,16 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
+import { createBrowserClient } from "@supabase/ssr";
 import {
   HiPlus, HiPencil, HiTrash, HiCheckCircle, HiXCircle,
   HiPhone, HiBuildingLibrary,
 } from "react-icons/hi2";
+
+const sbc = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface Point {
   id: string;
@@ -14,6 +21,7 @@ interface Point {
   notes: string | null;
   is_active: boolean;
   display_order: number;
+  icon_url: string | null;
 }
 
 const emptyForm = {
@@ -32,6 +40,7 @@ export default function TransferPointsPage() {
   const [form,      setForm]      = useState(emptyForm);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState("");
+  const [iconFile,  setIconFile]  = useState<File | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +67,7 @@ export default function TransferPointsPage() {
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
+    setIconFile(null);
     setError("");
     setModal(true);
   };
@@ -73,6 +83,7 @@ export default function TransferPointsPage() {
       is_active:     pt.is_active,
       display_order: pt.display_order,
     });
+    setIconFile(null);
     setError("");
     setModal(true);
   };
@@ -82,12 +93,24 @@ export default function TransferPointsPage() {
       setError("الاسم ورقم الهاتف إلزاميان"); return;
     }
     setSaving(true); setError("");
+
+    let icon_url: string | undefined;
+    if (iconFile) {
+      const ext  = iconFile.name.split(".").pop() ?? "png";
+      const path = `points/${Date.now()}.${ext}`;
+      const { error: upErr } = await sbc.storage.from("payment-logos").upload(path, iconFile, {
+        upsert: true, contentType: iconFile.type,
+      });
+      if (upErr) { setError("فشل رفع الأيقونة"); setSaving(false); return; }
+      icon_url = sbc.storage.from("payment-logos").getPublicUrl(path).data.publicUrl;
+    }
+
     const url    = editing ? `/api/admin/transfer-points/${editing.id}` : "/api/admin/transfer-points";
     const method = editing ? "PATCH" : "POST";
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, ...(icon_url ? { icon_url } : {}) }),
     });
     const d = await res.json();
     if (!res.ok) { setError(d.error ?? "خطأ"); setSaving(false); return; }
@@ -161,9 +184,15 @@ export default function TransferPointsPage() {
               <div className="space-y-2">
                 {g.items.map(pt => (
                   <div key={pt.id} className={`card-base flex items-center gap-4 p-4 transition-all ${!pt.is_active ? "opacity-60" : ""}`}>
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30">
-                      <HiPhone className="text-brand-700 dark:text-accent-400 text-lg"/>
-                    </div>
+                    {pt.icon_url ? (
+                      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-white border border-[var(--border)]">
+                        <Image src={pt.icon_url} alt={pt.label} fill className="object-contain p-0.5" unoptimized/>
+                      </div>
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30">
+                        <HiPhone className="text-brand-700 dark:text-accent-400 text-lg"/>
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-[var(--text-1)]">{pt.label}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -240,6 +269,18 @@ export default function TransferPointsPage() {
               <input type="text" placeholder="أحمد محمد" value={form.account_name}
                 onChange={e => setForm(f => ({ ...f, account_name: e.target.value }))}
                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm"/>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-[var(--text-2)] mb-1.5 block">أيقونة النقطة (شعار الخدمة)</label>
+              <label className={`block w-full rounded-xl border-2 border-dashed px-4 py-3 text-sm text-center cursor-pointer transition-colors ${
+                iconFile ? "border-green-400 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                : "border-[var(--border)] text-[var(--text-muted)] hover:border-brand-400"
+              }`}>
+                <input type="file" accept="image/*" className="hidden"
+                  onChange={e => setIconFile(e.target.files?.[0] ?? null)}/>
+                🖼 {iconFile ? iconFile.name : editing?.icon_url ? "تغيير الأيقونة الحالية" : "رفع أيقونة (PNG/SVG)"}
+              </label>
             </div>
 
             <div>
