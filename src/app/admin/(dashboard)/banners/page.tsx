@@ -1,7 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { HiPlus, HiPencilSquare, HiTrash, HiEye, HiEyeSlash, HiPhoto } from "react-icons/hi2";
+import { createBrowserClient } from "@supabase/ssr";
+import { HiPlus, HiPencilSquare, HiTrash, HiEye, HiEyeSlash, HiPhoto, HiLink, HiArrowUpTray } from "react-icons/hi2";
+
+const sbc = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface Banner {
   id: string;
@@ -30,6 +36,8 @@ export default function BannersPage() {
   const [form,    setForm]    = useState<Omit<Banner,"id">>(EMPTY);
   const [editId,  setEditId]  = useState<string | null>(null);
   const [error,   setError]   = useState("");
+  const [imgMode, setImgMode] = useState<"upload" | "url">("upload");
+  const [uploading, setUploading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -42,13 +50,26 @@ export default function BannersPage() {
   useEffect(() => { load(); }, []);
 
   const openAdd = () => {
-    setForm(EMPTY); setEditId(null); setError(""); setModal(true);
+    setForm(EMPTY); setEditId(null); setError(""); setImgMode("upload"); setModal(true);
   };
 
   const openEdit = (b: Banner) => {
     const { id, ...rest } = b;
     setForm({ ...rest, starts_at: rest.starts_at?.slice(0,16) ?? "", ends_at: rest.ends_at?.slice(0,16) ?? "" });
-    setEditId(id); setError(""); setModal(true);
+    setEditId(id); setError(""); setImgMode("url"); setModal(true);
+  };
+
+  const uploadBannerImage = async (file: File) => {
+    setUploading(true); setError("");
+    const ext  = file.name.split(".").pop() ?? "jpg";
+    const path = `banners/${Date.now()}.${ext}`;
+    const { error: upErr } = await sbc.storage.from("assets").upload(path, file, {
+      upsert: true, contentType: file.type,
+    });
+    if (upErr) { setError("فشل رفع الصورة — حاول مجدداً"); setUploading(false); return; }
+    const url = sbc.storage.from("assets").getPublicUrl(path).data.publicUrl;
+    setForm(f => ({ ...f, image_url: url }));
+    setUploading(false);
   };
 
   const handleSave = async () => {
@@ -189,11 +210,41 @@ export default function BannersPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-2)] mb-1">رابط الصورة *</label>
-                <input value={form.image_url} onChange={e => F("image_url", e.target.value)}
-                  placeholder="https://... أو رابط من Supabase Storage"
-                  className="input-base w-full"/>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-[var(--text-2)]">صورة البنر *</label>
+                {/* اختيار الطريقة */}
+                <div className="flex rounded-xl border border-[var(--border)] overflow-hidden">
+                  <button type="button" onClick={() => setImgMode("upload")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors ${
+                      imgMode === "upload" ? "bg-brand-700 text-white" : "bg-[var(--bg-page)] text-[var(--text-2)]"
+                    }`}>
+                    <HiArrowUpTray className="text-sm"/> رفع من الجهاز
+                  </button>
+                  <button type="button" onClick={() => setImgMode("url")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition-colors ${
+                      imgMode === "url" ? "bg-brand-700 text-white" : "bg-[var(--bg-page)] text-[var(--text-2)]"
+                    }`}>
+                    <HiLink className="text-sm"/> رابط خارجي
+                  </button>
+                </div>
+
+                {imgMode === "upload" ? (
+                  <label className={`block w-full rounded-xl border-2 border-dashed px-4 py-5 text-sm text-center cursor-pointer transition-colors ${
+                    uploading ? "border-amber-300 bg-amber-50 text-amber-700"
+                    : form.image_url ? "border-green-400 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                    : "border-[var(--border)] text-[var(--text-muted)] hover:border-brand-400"
+                  }`}>
+                    <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadBannerImage(f); }}/>
+                    <HiPhoto className="text-2xl mx-auto mb-1"/>
+                    {uploading ? "جاري الرفع..." : form.image_url ? "تم الرفع ✓ — اضغط للتغيير" : "اضغط لاختيار صورة من هاتفك أو جهازك"}
+                  </label>
+                ) : (
+                  <input value={form.image_url} onChange={e => F("image_url", e.target.value)}
+                    placeholder="https://example.com/banner.jpg"
+                    dir="ltr"
+                    className="input-base w-full"/>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--text-2)] mb-1">العنوان الرئيسي *</label>

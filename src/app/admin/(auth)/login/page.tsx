@@ -170,6 +170,10 @@ export default function AdminLoginPage() {
                 ? <><Loader2 size={16} className="animate-spin" /> جارٍ التحقق...</>
                 : "دخول للوحة الإدارة"}
             </button>
+
+            <a href="/forgot-password" className="block text-center text-xs text-brand-400 hover:text-accent-500 transition-colors">
+              نسيت كلمة المرور؟
+            </a>
           </div>
 
           <div className="mt-5 flex items-center gap-2 rounded-lg bg-brand-900/50 p-3 text-xs text-brand-400">

@@ -102,6 +102,10 @@ export default function DriverLoginPage() {
             className="btn-primary w-full justify-center">
             {loading ? <><Loader2 size={16} className="animate-spin"/> جارٍ الدخول...</> : "دخول بوابة التوصيل"}
           </button>
+
+          <a href="/forgot-password" className="block text-center text-xs text-[var(--text-muted)] hover:text-brand-700 transition-colors">
+            نسيت كلمة المرور؟
+          </a>
         </div>
       </div>
     </div>

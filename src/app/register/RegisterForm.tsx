@@ -8,7 +8,7 @@ import Footer from "@/components/layout/Footer";
 import OtpInput from "@/components/ui/OtpInput";
 import {
   HiEnvelope, HiUser, HiShieldCheck, HiCheckCircle, HiArrowLeft,
-  HiArrowPath,
+  HiArrowPath, HiDevicePhoneMobile,
 } from "react-icons/hi2";
 import { useAuthStore } from "@/store/authStore";
 
@@ -28,7 +28,8 @@ export default function RegisterForm() {
   const [verifying, setVerifying] = useState(false);
   const [error,     setError]     = useState("");
   const [cooldown,  setCooldown]  = useState(0);
-  const [form, setForm] = useState({ full_name: "", email: "" });
+  const [method,    setMethod]    = useState<"email" | "phone">("email");
+  const [form, setForm] = useState({ full_name: "", email: "", phone: "" });
 
   useEffect(() => {
     if (user) router.replace("/account");
@@ -98,6 +99,55 @@ export default function RegisterForm() {
     else setError("تعذّر إعادة الإرسال");
   };
 
+  const sendPhoneOtp = async () => {
+    if (!form.full_name.trim()) { setError("أدخل اسمك الكامل"); return; }
+    if (form.phone.replace(/\D/g, "").length < 9) { setError("أدخل رقم جوال صحيح"); return; }
+    setLoading(true); setError("");
+    const res = await fetch("/api/auth/phone/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: form.phone.trim() }),
+    });
+    const d = await res.json();
+    setLoading(false);
+    if (!res.ok) { setError(d.error ?? "تعذّر الإرسال"); return; }
+    setStep("otp"); setCooldown(60);
+  };
+
+  const verifyPhoneOtp = async (code: string) => {
+    setVerifying(true); setError("");
+    const res = await fetch("/api/auth/phone/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: form.phone.trim(), code, full_name: form.full_name.trim() }),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) {
+      setVerifying(false);
+      setError(d.error ?? "الرمز غير صحيح");
+      return;
+    }
+    await supabase.auth.setSession({
+      access_token:  d.access_token,
+      refresh_token: d.refresh_token,
+    });
+    setVerifying(false);
+    setStep("done");
+    setTimeout(() => router.replace("/account"), 1500);
+  };
+
+  const resendPhone = async () => {
+    if (cooldown > 0) return;
+    setError("");
+    const res = await fetch("/api/auth/phone/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: form.phone.trim() }),
+    });
+    if (res.ok) setCooldown(60);
+    else setError("تعذّر إعادة الإرسال");
+  };
+
   const iCls = "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
 
   return (
@@ -114,7 +164,7 @@ export default function RegisterForm() {
             </h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
               {step === "form" && "سجّل للتسوق وتتبع طلباتك"}
-              {step === "otp"  && `أدخل الرمز المُرسل إلى ${form.email}`}
+              {step === "otp"  && `أدخل الرمز المُرسل إلى ${method === "email" ? form.email : form.phone}`}
               {step === "done" && "جارٍ تحويلك لحسابك..."}
             </p>
           </div>
@@ -133,6 +183,22 @@ export default function RegisterForm() {
             {/* ── Step: form ── */}
             {step === "form" && (
               <div className="space-y-4">
+                {/* اختيار الطريقة */}
+                <div className="flex rounded-xl border border-[var(--border)] overflow-hidden">
+                  <button type="button" onClick={() => { setMethod("email"); setError(""); }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors ${
+                      method === "email" ? "bg-brand-700 text-white" : "bg-[var(--bg-page)] text-[var(--text-2)]"
+                    }`}>
+                    <HiEnvelope className="text-sm"/> البريد الإلكتروني
+                  </button>
+                  <button type="button" onClick={() => { setMethod("phone"); setError(""); }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors ${
+                      method === "phone" ? "bg-brand-700 text-white" : "bg-[var(--bg-page)] text-[var(--text-2)]"
+                    }`}>
+                    <HiDevicePhoneMobile className="text-sm"/> رقم الجوال (واتساب)
+                  </button>
+                </div>
+
                 {error && (
                   <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 text-sm text-red-600 dark:text-red-400">
                     ⚠ {error}
@@ -151,20 +217,34 @@ export default function RegisterForm() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">البريد الإلكتروني *</label>
-                  <div className="relative">
-                    <HiEnvelope className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]" />
-                    <input type="email" dir="ltr" placeholder="example@gmail.com"
-                      value={form.email}
-                      onChange={e => setF("email", e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && sendOtp()}
-                      className={`${iCls} pe-9`} autoComplete="email" />
+                {method === "email" ? (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">البريد الإلكتروني *</label>
+                    <div className="relative">
+                      <HiEnvelope className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]" />
+                      <input type="email" dir="ltr" placeholder="example@gmail.com"
+                        value={form.email}
+                        onChange={e => setF("email", e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && sendOtp()}
+                        className={`${iCls} pe-9`} autoComplete="email" />
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">رقم الجوال *</label>
+                    <div className="relative">
+                      <HiDevicePhoneMobile className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]" />
+                      <input type="tel" dir="ltr" placeholder="7XXXXXXXX"
+                        value={form.phone}
+                        onChange={e => setF("phone", e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && sendPhoneOtp()}
+                        className={`${iCls} pe-9`} autoComplete="tel" />
+                    </div>
+                  </div>
+                )}
 
-                <button onClick={sendOtp}
-                  disabled={loading || !form.full_name || !form.email}
+                <button onClick={method === "email" ? sendOtp : sendPhoneOtp}
+                  disabled={loading || !form.full_name || (method === "email" ? !form.email : !form.phone)}
                   className="btn-primary w-full justify-center py-3">
                   {loading
                     ? <><span className="animate-spin inline-block mr-2">⏳</span> جارٍ الإرسال...</>
@@ -173,7 +253,9 @@ export default function RegisterForm() {
 
                 <div className="flex items-start gap-2 rounded-xl bg-[var(--bg-page)] border border-[var(--border)] p-3 text-xs text-[var(--text-muted)]">
                   <HiShieldCheck className="shrink-0 text-brand-700 text-base mt-0.5" />
-                  ستصلك رسالة تحتوي على رمز مكوّن من 6 أرقام. لا كلمة مرور مطلوبة.
+                  {method === "email"
+                    ? "ستصلك رسالة تحتوي على رمز مكوّن من 6 أرقام. لا كلمة مرور مطلوبة."
+                    : "سيصلك رمز مكوّن من 6 أرقام عبر واتساب. لا كلمة مرور مطلوبة."}
                 </div>
               </div>
             )}
@@ -183,10 +265,12 @@ export default function RegisterForm() {
               <div className="space-y-6">
                 {/* Email display */}
                 <div className="flex items-center gap-3 rounded-xl bg-[var(--bg-page)] border border-[var(--border)] px-4 py-3">
-                  <HiEnvelope className="text-brand-700 text-lg shrink-0" />
+                  {method === "email"
+                    ? <HiEnvelope className="text-brand-700 text-lg shrink-0" />
+                    : <HiDevicePhoneMobile className="text-brand-700 text-lg shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-muted)]">تم إرسال الرمز إلى</p>
-                    <p className="text-sm font-semibold text-[var(--text-1)] truncate" dir="ltr">{form.email}</p>
+                    <p className="text-sm font-semibold text-[var(--text-1)] truncate" dir="ltr">{method === "email" ? form.email : form.phone}</p>
                   </div>
                   <button onClick={() => { setStep("form"); setError(""); }}
                     className="text-xs text-brand-700 dark:text-accent-400 hover:underline shrink-0">
@@ -199,7 +283,7 @@ export default function RegisterForm() {
                   <p className="text-center text-sm font-medium text-[var(--text-2)]">أدخل الرمز المكوّن من 6 أرقام</p>
                   <OtpInput
                     length={6}
-                    onComplete={verifyOtp}
+                    onComplete={method === "email" ? verifyOtp : verifyPhoneOtp}
                     disabled={verifying}
                     autoFocus
                   />
@@ -226,7 +310,7 @@ export default function RegisterForm() {
                       إعادة إرسال بعد <span className="font-bold text-brand-700 dark:text-accent-400">{cooldown}</span> ثانية
                     </p>
                   ) : (
-                    <button onClick={resend}
+                    <button onClick={method === "email" ? resend : resendPhone}
                       className="flex items-center gap-1.5 mx-auto text-sm text-brand-700 dark:text-accent-400 hover:underline">
                       <HiArrowPath className="text-base" /> إعادة إرسال الرمز
                     </button>
