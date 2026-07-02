@@ -1,9 +1,15 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  HiCheckCircle, HiXCircle, HiClock, HiMagnifyingGlass,
-  HiArrowPath, HiBanknotes,
+  HiCheckCircle, HiXCircle, HiClock, HiArrowPath, HiBanknotes,
+  HiXMark, HiDocumentArrowUp, HiListBullet,
 } from "react-icons/hi2";
+import { createBrowserClient } from "@supabase/ssr";
+
+const sb = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 interface Payment {
   id: string;
@@ -12,6 +18,7 @@ interface Payment {
   currency: string;
   status: string;
   transaction_ref: string | null;
+  receipt_url: string | null;
   confirmed_at: string | null;
   created_at: string;
   orders: {
@@ -21,13 +28,23 @@ interface Payment {
   } | null;
 }
 
+interface PaymentLog {
+  id: string;
+  event_type: string;
+  direction: string;
+  provider_code: string;
+  status_code: number | null;
+  error_message: string | null;
+  created_at: string;
+}
+
 const STATUS_CFG: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-  pending:                { label:"معلّق",          cls:"bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400", icon:<HiClock/> },
-  awaiting_confirmation:  { label:"بانتظار التأكيد", cls:"bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",   icon:<HiClock/> },
-  paid:                   { label:"مدفوع",           cls:"bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400", icon:<HiCheckCircle/> },
-  failed:                 { label:"فشل",             cls:"bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400",         icon:<HiXCircle/> },
-  expired:                { label:"منتهي",           cls:"bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",       icon:<HiXCircle/> },
-  refunded:               { label:"مُسترجع",         cls:"bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400", icon:<HiArrowPath/> },
+  pending:               { label:"معلّق",           cls:"bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400", icon:<HiClock/> },
+  awaiting_confirmation: { label:"بانتظار التأكيد", cls:"bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",       icon:<HiClock/> },
+  paid:                  { label:"مدفوع",            cls:"bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400",   icon:<HiCheckCircle/> },
+  failed:                { label:"فشل",              cls:"bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400",           icon:<HiXCircle/> },
+  expired:               { label:"منتهي",            cls:"bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",         icon:<HiXCircle/> },
+  refunded:              { label:"مُسترجع",          cls:"bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400", icon:<HiArrowPath/> },
 };
 
 const PROVIDER_NAMES: Record<string, string> = {
@@ -37,14 +54,19 @@ const PROVIDER_NAMES: Record<string, string> = {
 };
 
 export default function PaymentsPage() {
-  const [payments,  setPayments]  = useState<Payment[]>([]);
-  const [total,     setTotal]     = useState(0);
-  const [loading,   setLoading]   = useState(true);
-  const [filter,    setFilter]    = useState("");
-  const [confirming,setConfirming]= useState<string | null>(null);
-  const [txnRef,    setTxnRef]    = useState("");
-  const [modal,     setModal]     = useState<Payment | null>(null);
-  const [saving,    setSaving]    = useState(false);
+  const [payments,    setPayments]    = useState<Payment[]>([]);
+  const [total,       setTotal]       = useState(0);
+  const [loading,     setLoading]     = useState(true);
+  const [filter,      setFilter]      = useState("");
+  const [modal,       setModal]       = useState<Payment | null>(null);
+  const [txnRef,      setTxnRef]      = useState("");
+  const [saving,      setSaving]      = useState(false);
+  const [receipt,     setReceipt]     = useState<File | null>(null);
+  const [uploading,   setUploading]   = useState(false);
+  const [logsModal,   setLogsModal]   = useState<Payment | null>(null);
+  const [logs,        setLogs]        = useState<PaymentLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,17 +80,53 @@ export default function PaymentsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const openConfirm = (p: Payment) => { setModal(p); setTxnRef(""); setReceipt(null); };
+
+  const uploadReceipt = async (paymentId: string, file: File): Promise<string | null> => {
+    setUploading(true);
+    const ext  = file.name.split(".").pop() ?? "jpg";
+    const path = `receipts/${paymentId}.${ext}`;
+    const { error } = await sb.storage.from("payment-receipts").upload(path, file, { upsert: true, contentType: file.type });
+    if (error) { setUploading(false); return null; }
+    const { data } = sb.storage.from("payment-receipts").getPublicUrl(path);
+    setUploading(false);
+    return data.publicUrl;
+  };
+
   const confirm = async () => {
     if (!modal) return;
     setSaving(true);
+    let receiptUrl: string | null = null;
+    if (receipt) receiptUrl = await uploadReceipt(modal.id, receipt);
+
     const res = await fetch(`/api/admin/payments/${modal.id}/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transactionRef: txnRef }),
+      body: JSON.stringify({ transactionRef: txnRef || undefined, receiptUrl }),
     });
     const d = await res.json();
-    if (d.success) { setModal(null); setTxnRef(""); load(); }
+    if (d.success) { setModal(null); load(); }
     setSaving(false);
+  };
+
+  const refund = async (p: Payment) => {
+    if (!window.confirm(`تأكيد استرجاع دفعة الطلب #${p.orders?.order_number}؟`)) return;
+    await fetch(`/api/admin/payments/${p.id}/refund`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes: "استرجاع يدوي من الإدارة" }),
+    });
+    load();
+  };
+
+  const viewLogs = async (p: Payment) => {
+    setLogsModal(p);
+    setLogs([]);
+    setLogsLoading(true);
+    const res  = await fetch(`/api/admin/payments/${p.id}`);
+    const data = await res.json();
+    setLogs(data.logs ?? []);
+    setLogsLoading(false);
   };
 
   const needsConfirm = (p: Payment) =>
@@ -84,14 +142,14 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-bold text-[var(--text-1)]">سجل المدفوعات</h1>
           <p className="text-sm text-[var(--text-muted)]">{total} عملية دفع</p>
         </div>
-        <button onClick={load} className="btn-ghost border border-[var(--border)] gap-2">
+        <button onClick={load} className="btn-ghost border border-[var(--border)] gap-2 flex items-center">
           <HiArrowPath className="text-base"/> تحديث
         </button>
       </div>
 
-      {/* Filter */}
+      {/* Status filter chips */}
       <div className="flex items-center gap-2 flex-wrap">
-        {["","pending","awaiting_confirmation","paid","failed"].map(s => (
+        {["","pending","awaiting_confirmation","paid","failed","refunded"].map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
               filter === s
@@ -115,15 +173,15 @@ export default function PaymentsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-[var(--border)] bg-[var(--bg-card)]">
               <tr>
-                {["رقم الطلب","العميل","المزود","المبلغ","الحالة","التاريخ","إجراء"].map(h => (
+                {["رقم الطلب","العميل","المزود","المبلغ","الحالة","التاريخ","إجراءات"].map(h => (
                   <th key={h} className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)]">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
               {payments.map(p => {
-                const cfg    = STATUS_CFG[p.status] ?? STATUS_CFG["pending"];
-                const order  = p.orders;
+                const cfg     = STATUS_CFG[p.status] ?? STATUS_CFG["pending"];
+                const order   = p.orders;
                 const profile = order?.profiles;
                 return (
                   <tr key={p.id} className="bg-[var(--bg-card)] hover:bg-[var(--bg-page)] transition-colors">
@@ -147,16 +205,30 @@ export default function PaymentsPage() {
                       {fmt(p.created_at)}
                     </td>
                     <td className="px-4 py-3">
-                      {needsConfirm(p) ? (
-                        <button onClick={() => { setModal(p); setTxnRef(""); confirming === p.id ? setConfirming(null) : setConfirming(p.id); }}
-                          className="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 transition-colors">
-                          تأكيد الدفع
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {needsConfirm(p) && (
+                          <button onClick={() => openConfirm(p)}
+                            className="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 transition-colors">
+                            تأكيد
+                          </button>
+                        )}
+                        {p.status === "paid" && p.provider_code !== "stripe" && (
+                          <button onClick={() => refund(p)}
+                            className="rounded-lg border border-red-300 text-red-600 px-3 py-1.5 text-xs font-medium hover:bg-red-50 transition-colors">
+                            استرجاع
+                          </button>
+                        )}
+                        {p.receipt_url && (
+                          <a href={p.receipt_url} target="_blank" rel="noreferrer"
+                            className="text-xs text-brand-700 dark:text-accent-400 underline">
+                            إيصال
+                          </a>
+                        )}
+                        <button onClick={() => viewLogs(p)} title="سجل العمليات"
+                          className="text-[var(--text-muted)] hover:text-[var(--text-1)] transition-colors">
+                          <HiListBullet className="text-base"/>
                         </button>
-                      ) : p.confirmed_at ? (
-                        <span className="text-xs text-[var(--text-muted)]">{fmt(p.confirmed_at)}</span>
-                      ) : (
-                        <span className="text-xs text-[var(--text-muted)]">—</span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -166,13 +238,19 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {/* Confirm Modal */}
+      {/* ── Confirm Modal ── */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setModal(null)}/>
           <div className="relative w-full max-w-sm rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-2xl p-6 space-y-4">
-            <h3 className="text-lg font-bold text-[var(--text-1)]">تأكيد عملية الدفع</h3>
-            <div className="rounded-xl bg-[var(--bg-page)] p-4 space-y-1 text-sm">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[var(--text-1)]">تأكيد عملية الدفع</h3>
+              <button onClick={() => setModal(null)} className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                <HiXMark className="text-xl"/>
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-[var(--bg-page)] p-4 space-y-1.5 text-sm">
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted)]">الطلب</span>
                 <span className="font-mono font-bold text-[var(--text-1)]" dir="ltr">#{modal.orders?.order_number}</span>
@@ -186,22 +264,97 @@ export default function PaymentsPage() {
                 <span className="text-[var(--text-1)]">{PROVIDER_NAMES[modal.provider_code] ?? modal.provider_code}</span>
               </div>
             </div>
+
             <div>
               <label className="text-xs font-medium text-[var(--text-2)] mb-1.5 block">
                 رقم مرجع العملية (اختياري)
               </label>
               <input type="text" dir="ltr" placeholder="TXN-XXXXXXXX" value={txnRef}
                 onChange={e => setTxnRef(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm"/>
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500"/>
             </div>
+
+            {/* Receipt upload */}
+            <div>
+              <label className="text-xs font-medium text-[var(--text-2)] mb-1.5 block">
+                صورة إيصال التحويل (اختياري)
+              </label>
+              <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
+                onChange={e => setReceipt(e.target.files?.[0] ?? null)}/>
+              <button onClick={() => fileRef.current?.click()}
+                className={`w-full rounded-xl border-2 border-dashed py-3 text-sm text-center transition-colors flex flex-col items-center gap-1 ${
+                  receipt
+                    ? "border-green-400 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                    : "border-[var(--border)] text-[var(--text-muted)] hover:border-brand-400"
+                }`}>
+                <HiDocumentArrowUp className="text-xl"/>
+                {receipt ? receipt.name : "اضغط لرفع صورة الإيصال"}
+              </button>
+            </div>
+
             <div className="flex gap-3">
               <button onClick={() => setModal(null)} className="btn-ghost border border-[var(--border)] flex-1 justify-center">
                 إلغاء
               </button>
-              <button onClick={confirm} disabled={saving} className="btn-primary flex-1 justify-center gap-2">
-                <HiCheckCircle className="text-base"/> {saving ? "..." : "تأكيد الاستلام"}
+              <button onClick={confirm} disabled={saving || uploading} className="btn-primary flex-1 justify-center gap-2">
+                <HiCheckCircle className="text-base"/>
+                {uploading ? "جاري الرفع..." : saving ? "جاري الحفظ..." : "تأكيد الاستلام"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Logs Modal ── */}
+      {logsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setLogsModal(null)}/>
+          <div className="relative w-full max-w-lg rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-[var(--text-1)]">سجل العمليات</h3>
+                <p className="text-xs text-[var(--text-muted)]">طلب #{logsModal.orders?.order_number}</p>
+              </div>
+              <button onClick={() => setLogsModal(null)} className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                <HiXMark className="text-xl"/>
+              </button>
+            </div>
+
+            {logsLoading ? (
+              <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="skeleton h-10 rounded-lg"/>)}</div>
+            ) : logs.length === 0 ? (
+              <p className="text-sm text-center text-[var(--text-muted)] py-6">لا توجد سجلات لهذه العملية</p>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {logs.map(l => (
+                  <div key={l.id} className={`rounded-xl p-3 text-xs flex gap-3 items-start ${
+                    l.error_message ? "bg-red-50 dark:bg-red-900/10" : "bg-[var(--bg-page)]"
+                  }`}>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-[var(--text-1)]">{l.event_type}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 ${
+                          l.direction === "inbound"
+                            ? "bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+                            : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                        }`}>{l.direction === "inbound" ? "وارد" : "صادر"}</span>
+                        {l.status_code && (
+                          <span className={`rounded px-1.5 py-0.5 font-mono ${
+                            l.status_code < 300 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                          }`}>{l.status_code}</span>
+                        )}
+                      </div>
+                      {l.error_message && (
+                        <p className="text-red-600 dark:text-red-400">{l.error_message}</p>
+                      )}
+                    </div>
+                    <span className="text-[var(--text-muted)] whitespace-nowrap shrink-0">
+                      {new Date(l.created_at).toLocaleTimeString("ar-YE")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

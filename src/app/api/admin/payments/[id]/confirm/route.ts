@@ -10,7 +10,20 @@ export async function POST(
   if (auth.error) return auth.error;
 
   const { id: paymentId } = await params;
-  const body = await request.json().catch(() => ({})) as { transactionRef?: string; notes?: string };
+  const body = await request.json().catch(() => ({})) as {
+    transactionRef?: string; notes?: string; receiptUrl?: string;
+  };
+
+  // Save receipt URL before confirmation if provided
+  if (body.receiptUrl) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } },
+    );
+    await sb.from("payments").update({ receipt_url: body.receiptUrl }).eq("id", paymentId);
+  }
 
   const result = await PaymentGateway.confirmManual({
     paymentId,

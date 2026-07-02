@@ -17,7 +17,7 @@ interface Notification {
   created_at: string;
 }
 
-const TYPE_MAP: Record<string, { label: string; icon: JSX.Element; color: string }> = {
+const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   order_new:       { label: "طلب جديد",     icon: <HiShoppingCart />,        color: "text-blue-500 bg-blue-50 dark:bg-blue-900/20" },
   order_paid:      { label: "تم الدفع",     icon: <HiCurrencyDollar />,      color: "text-green-500 bg-green-50 dark:bg-green-900/20" },
   order_cancelled: { label: "إلغاء طلب",    icon: <HiXMark />,               color: "text-red-500 bg-red-50 dark:bg-red-900/20" },

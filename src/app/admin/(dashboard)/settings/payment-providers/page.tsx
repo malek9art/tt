@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import {
-  HiCheckCircle, HiXCircle, HiArrowPath,
+  HiCheckCircle, HiXCircle, HiArrowPath, HiCog6Tooth, HiXMark,
 } from "react-icons/hi2";
 
 const sb = createBrowserClient(
@@ -45,10 +45,29 @@ const PROVIDER_EMOJIS: Record<string, string> = {
   onecash:"💰", yemenmobile:"📱", bank:"🏦",
 };
 
+// Config fields per provider type
+const CONFIG_FIELDS: Record<string, Array<{ key: string; label: string; placeholder?: string; multiline?: boolean }>> = {
+  manual_wallet: [
+    { key: "account_number", label: "رقم المحفظة", placeholder: "7X XXXXXXXX" },
+    { key: "account_name",   label: "اسم صاحب المحفظة", placeholder: "أحمد محمد" },
+  ],
+  bank_transfer: [
+    { key: "account_number", label: "رقم الحساب البنكي", placeholder: "XXXX XXXX XXXX" },
+    { key: "account_name",   label: "اسم صاحب الحساب", placeholder: "مركز الأحمدي للجوالات" },
+    { key: "bank_name",      label: "اسم البنك",        placeholder: "البنك الأهلي اليمني" },
+  ],
+  transfer_point: [],
+  stripe: [],
+  cod:    [],
+};
+
 export default function PaymentProvidersPage() {
   const [providers, setProviders]  = useState<Provider[]>([]);
   const [loading,   setLoading]    = useState(true);
   const [saving,    setSaving]     = useState<string | null>(null);
+  const [editModal, setEditModal]  = useState<Provider | null>(null);
+  const [cfg,       setCfg]        = useState<Record<string, string>>({});
+  const [cfgSaving, setCfgSaving]  = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,20 +83,53 @@ export default function PaymentProvidersPage() {
 
   const toggle = async (p: Provider) => {
     setSaving(p.id);
-    await sb.from("payment_providers")
-      .update({ is_active: !p.is_active, updated_at: new Date().toISOString() })
-      .eq("id", p.id);
-    setProviders(prev => prev.map(x => x.id === p.id ? { ...x, is_active: !x.is_active } : x));
+    const res = await fetch(`/api/admin/settings/payment-providers/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: !p.is_active }),
+    });
+    if (res.ok) {
+      setProviders(prev => prev.map(x => x.id === p.id ? { ...x, is_active: !x.is_active } : x));
+    }
     setSaving(null);
   };
 
   const toggleTestMode = async (p: Provider) => {
     setSaving(p.id + "_test");
-    await sb.from("payment_providers")
-      .update({ is_test_mode: !p.is_test_mode, updated_at: new Date().toISOString() })
-      .eq("id", p.id);
-    setProviders(prev => prev.map(x => x.id === p.id ? { ...x, is_test_mode: !x.is_test_mode } : x));
+    const res = await fetch(`/api/admin/settings/payment-providers/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_test_mode: !p.is_test_mode }),
+    });
+    if (res.ok) {
+      setProviders(prev => prev.map(x => x.id === p.id ? { ...x, is_test_mode: !x.is_test_mode } : x));
+    }
     setSaving(null);
+  };
+
+  const openEdit = (p: Provider) => {
+    setCfg({ ...(p.config ?? {}) });
+    setEditModal(p);
+  };
+
+  const saveConfig = async () => {
+    if (!editModal) return;
+    setCfgSaving(true);
+    const res = await fetch(`/api/admin/settings/payment-providers/${editModal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config: cfg }),
+    });
+    if (res.ok) {
+      setProviders(prev => prev.map(x => x.id === editModal.id ? { ...x, config: cfg } : x));
+      setEditModal(null);
+    }
+    setCfgSaving(false);
+  };
+
+  const editableType = (p: Provider) => {
+    const type = p.metadata?.type ?? "";
+    return CONFIG_FIELDS[type] && CONFIG_FIELDS[type].length > 0;
   };
 
   return (
@@ -85,7 +137,7 @@ export default function PaymentProvidersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-1)]">وسائل الدفع</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-0.5">فعّل أو عطّل طرق الدفع المتاحة للعملاء</p>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">فعّل أو عطّل طرق الدفع وأعدّ بياناتها</p>
         </div>
         <button onClick={load} className="btn-ghost border border-[var(--border)] gap-2 flex items-center">
           <HiArrowPath className="text-base"/> تحديث
@@ -126,10 +178,25 @@ export default function PaymentProvidersPage() {
                         )}
                       </div>
                       <p className="text-xs text-[var(--text-muted)] mt-0.5">{meta.description ?? ""}</p>
+
+                      {/* Config preview */}
+                      {p.is_active && p.config?.account_number && (
+                        <p className="text-xs text-[var(--text-2)] mt-1 font-mono" dir="ltr">
+                          {p.config.account_number}
+                          {p.config.account_name && ` · ${p.config.account_name}`}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    {/* Config edit button */}
+                    {editableType(p) && (
+                      <button onClick={() => openEdit(p)}
+                        className="flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-2)] hover:border-brand-500 hover:text-brand-700 transition-colors">
+                        <HiCog6Tooth className="text-sm"/> إعداد
+                      </button>
+                    )}
                     {/* Test mode toggle */}
                     {p.code !== "cod" && (
                       <button onClick={() => toggleTestMode(p)}
@@ -158,6 +225,16 @@ export default function PaymentProvidersPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Transfer-point hint */}
+                {type === "transfer_point" && p.is_active && (
+                  <p className="mt-3 text-xs text-[var(--text-muted)] border-t border-[var(--border)] pt-3">
+                    نقاط التحويل تُدار من{" "}
+                    <a href="/admin/settings/transfer-points" className="text-brand-700 dark:text-accent-400 underline font-medium">
+                      صفحة نقاط التحويل
+                    </a>
+                  </p>
+                )}
               </div>
             );
           })}
@@ -165,10 +242,56 @@ export default function PaymentProvidersPage() {
       )}
 
       <div className="rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20 p-4 text-sm text-blue-700 dark:text-blue-300">
-        ℹ لإضافة نقاط الكريمي والقطيبي والمحافظ اليدوية، فعّل المزود ثم توجّه إلى{" "}
-        <a href="/admin/settings/transfer-points" className="underline font-medium">نقاط التحويل</a>{" "}
-        لإدارة الأرقام.
+        ℹ مفاتيح API كـ Stripe Secret تُوضع في متغيرات البيئة (Vercel → Settings → Environment Variables) ولا تُخزَّن هنا.
       </div>
+
+      {/* Config Edit Modal */}
+      {editModal && (() => {
+        const type   = editModal.metadata?.type ?? "";
+        const fields = CONFIG_FIELDS[type] ?? [];
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditModal(null)}/>
+            <div className="relative w-full max-w-md rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-[var(--text-1)]">
+                  إعداد {editModal.metadata?.name_ar ?? editModal.name}
+                </h3>
+                <button onClick={() => setEditModal(null)} className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                  <HiXMark className="text-xl"/>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {fields.map(f => (
+                  <div key={f.key}>
+                    <label className="text-xs font-medium text-[var(--text-2)] block mb-1.5">{f.label}</label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      placeholder={f.placeholder}
+                      value={cfg[f.key] ?? ""}
+                      onChange={e => setCfg(prev => ({ ...prev, [f.key]: e.target.value }))}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-brand-500"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setEditModal(null)}
+                  className="btn-ghost border border-[var(--border)] flex-1 justify-center">
+                  إلغاء
+                </button>
+                <button onClick={saveConfig} disabled={cfgSaving}
+                  className="btn-primary flex-1 justify-center gap-2">
+                  <HiCheckCircle className="text-base"/> {cfgSaving ? "جاري الحفظ..." : "حفظ"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
