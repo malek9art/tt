@@ -39,7 +39,7 @@ function parseCSV(text: string): ImportRow[] {
 }
 
 export async function POST(request: NextRequest) {
-  const { error, supabase } = await requireAdmin("products:write");
+  const { error, supabase } = await requireAdmin("inventory:manage");
   if (error) return error;
 
   const formData  = await request.formData();

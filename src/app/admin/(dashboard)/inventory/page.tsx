@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { AlertTriangle, Package, TrendingDown, RefreshCw, Download, Upload, X } from "lucide-react";
+import { AlertTriangle, Package, TrendingDown, RefreshCw, Download, Upload, X, Plus, Search, Loader2, Wand2, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { toast } from "@/store/toastStore";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,14 +38,33 @@ function getProduct(pv: ProductVariantRow | null) {
   return Array.isArray(pv.products) ? pv.products[0] ?? null : pv.products;
 }
 
+const EMPTY_QUICK = {
+  name_ar: "", sku: "", base_price: "", compare_at_price: "",
+  category_id: "", brand_id: "", condition: "new" as "new"|"used_certified",
+  status: "published" as "published"|"draft",
+  quantity: "1", reorder_level: "5", location: "",
+};
+
 export default function InventoryPage() {
   const [items,        setItems]        = useState<InventoryItem[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [filter,       setFilter]       = useState<"all"|"low"|"out">("all");
+  const [search,       setSearch]       = useState("");
   const [importing,    setImporting]    = useState(false);
   const [importModal,  setImportModal]  = useState(false);
   const [importResult, setImportResult] = useState<{ updated:number; skipped:number; errors:string[]; message:string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // إضافة منتج سريعة
+  const [quickModal,  setQuickModal]  = useState(false);
+  const [quickForm,   setQuickForm]   = useState(EMPTY_QUICK);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickError,  setQuickError]  = useState("");
+  const [quickDone,   setQuickDone]   = useState<{ product_id: string; sku: string } | null>(null);
+  const [categories,  setCategories]  = useState<{id:string;name_ar:string}[]>([]);
+  const [brands,      setBrands]      = useState<{id:string;name:string}[]>([]);
+  const [syncing,     setSyncing]     = useState(false);
+  const setQ = (k: string, v: string) => { setQuickForm(f => ({ ...f, [k]: v })); setQuickError(""); };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,9 +81,71 @@ export default function InventoryPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // تحميل الفئات والماركات عند أول فتح لنافذة الإضافة
+  useEffect(() => {
+    if (!quickModal || categories.length) return;
+    Promise.all([
+      sb.from("categories").select("id,name_ar").eq("is_active", true).order("sort_order"),
+      sb.from("brands").select("id,name").eq("is_active", true).order("sort_order"),
+    ]).then(([{ data: c }, { data: b }]) => { setCategories(c ?? []); setBrands(b ?? []); });
+  }, [quickModal, categories.length]);
+
+  const openQuickAdd = () => {
+    setQuickForm(EMPTY_QUICK); setQuickError(""); setQuickDone(null); setQuickModal(true);
+  };
+
+  const submitQuickAdd = async (addAnother: boolean) => {
+    setQuickSaving(true); setQuickError(""); setQuickDone(null);
+    const res = await fetch("/api/admin/inventory/products", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name_ar: quickForm.name_ar,
+        sku: quickForm.sku || undefined,
+        base_price: Number(quickForm.base_price),
+        compare_at_price: quickForm.compare_at_price ? Number(quickForm.compare_at_price) : null,
+        category_id: quickForm.category_id || null,
+        brand_id: quickForm.brand_id || null,
+        condition: quickForm.condition,
+        status: quickForm.status,
+        quantity: Number(quickForm.quantity) || 0,
+        reorder_level: Number(quickForm.reorder_level) || 5,
+        location: quickForm.location || null,
+      }),
+    });
+    const d = await res.json();
+    setQuickSaving(false);
+    if (!res.ok) { setQuickError(d.error ?? "فشلت الإضافة"); return; }
+    toast.success(`تمت إضافة «${quickForm.name_ar}» بنجاح`);
+    load();
+    if (addAnother) {
+      setQuickDone({ product_id: d.product_id, sku: d.sku });
+      setQuickForm(f => ({ ...EMPTY_QUICK, category_id: f.category_id, brand_id: f.brand_id, status: f.status }));
+    } else {
+      setQuickDone(null);
+      setQuickModal(false);
+    }
+  };
+
+  const runSync = async () => {
+    setSyncing(true);
+    const res = await fetch("/api/admin/inventory/sync", { method: "POST" });
+    const d = await res.json();
+    setSyncing(false);
+    if (!res.ok) { toast.error(d.error ?? "فشلت المزامنة"); return; }
+    toast.success(d.message);
+    load();
+  };
+
+  const q = search.trim().toLowerCase();
   const filtered = items.filter(i => {
-    if (filter === "low") return i.quantity > 0 && i.quantity <= i.reorder_level;
-    if (filter === "out") return i.quantity === 0;
+    if (filter === "low" && !(i.quantity > 0 && i.quantity <= i.reorder_level)) return false;
+    if (filter === "out" && i.quantity !== 0) return false;
+    if (q) {
+      const pv   = getVariant(i);
+      const prod = getProduct(pv);
+      const hay  = `${prod?.name_ar ?? ""} ${pv?.sku ?? ""} ${prod?.sku ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     return true;
   });
 
@@ -101,16 +184,24 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-bold text-[var(--text-1)]">إدارة المخزون</h1>
           <p className="text-sm text-[var(--text-muted)]">{items.length} صنف في المخزون</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={openQuickAdd} className="btn-primary gap-2 text-sm">
+            <Plus size={15}/> إضافة منتج
+          </button>
+          <button onClick={runSync} disabled={syncing}
+            title="ينشئ صفوف مخزون للمنتجات التي لا تظهر هنا"
+            className="btn-ghost border border-[var(--border)] gap-2 text-sm">
+            {syncing ? <Loader2 size={14} className="animate-spin"/> : <Wand2 size={14}/>} مزامنة المنتجات
+          </button>
           <button onClick={exportCsv} className="btn-ghost border border-[var(--border)] gap-2 text-sm">
-            <Download size={14}/> تصدير Excel
+            <Download size={14}/> تصدير
           </button>
           <button onClick={() => { setImportModal(true); setImportResult(null); }}
             className="btn-ghost border border-[var(--border)] gap-2 text-sm">
-            <Upload size={14}/> استيراد Excel
+            <Upload size={14}/> استيراد
           </button>
-          <button onClick={load} className="btn-ghost border border-[var(--border)] gap-2 text-sm">
-            <RefreshCw size={14}/> تحديث
+          <button onClick={load} aria-label="تحديث" className="btn-ghost border border-[var(--border)] gap-2 text-sm">
+            <RefreshCw size={14}/>
           </button>
         </div>
       </div>
@@ -130,7 +221,7 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {[
           { v:"all", l:"الكل" },
           { v:"low", l:`منخفض (${stats.low})` },
@@ -141,6 +232,12 @@ export default function InventoryPage() {
               filter === v ? "bg-brand-700 text-white" : "border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300"
             }`}>{l}</button>
         ))}
+        <div className="relative mr-auto min-w-52 flex-1 sm:flex-none">
+          <Search size={14} className="absolute top-1/2 -translate-y-1/2 end-3 text-[var(--text-muted)] pointer-events-none"/>
+          <input type="search" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="ابحث بالاسم أو SKU..."
+            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-card)] pe-8 ps-3 py-1.5 text-xs text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors"/>
+        </div>
       </div>
 
       <div className="card-base overflow-hidden">
@@ -151,7 +248,25 @@ export default function InventoryPage() {
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
             <Package size={40} className="mx-auto mb-3 opacity-20 text-[var(--text-muted)]"/>
-            <p className="text-[var(--text-muted)]">لا توجد أصناف</p>
+            <p className="font-semibold text-[var(--text-1)] mb-1">
+              {q ? "لا نتائج لبحثك" : "لا توجد أصناف في المخزون"}
+            </p>
+            {!q && (
+              <>
+                <p className="text-sm text-[var(--text-muted)] mb-5">
+                  أضف منتجاً جديداً، أو شغّل المزامنة لجلب منتجاتك الحالية إلى المخزون
+                </p>
+                <div className="flex justify-center gap-2">
+                  <button onClick={openQuickAdd} className="btn-primary gap-2 text-sm">
+                    <Plus size={15}/> إضافة منتج
+                  </button>
+                  <button onClick={runSync} disabled={syncing}
+                    className="btn-ghost border border-[var(--border)] gap-2 text-sm">
+                    {syncing ? <Loader2 size={14} className="animate-spin"/> : <Wand2 size={14}/>} مزامنة المنتجات
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -203,6 +318,133 @@ export default function InventoryPage() {
           </div>
         )}
       </div>
+
+      {/* Quick Add Product Modal */}
+      {quickModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto">
+          <div className="w-full max-w-lg my-8 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-[var(--text-1)] flex items-center gap-2">
+                <Plus size={18} className="text-brand-700"/> إضافة منتج سريعة
+              </h2>
+              <button onClick={() => setQuickModal(false)} aria-label="إغلاق"
+                className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                <X size={18}/>
+              </button>
+            </div>
+
+            {quickDone && (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
+                <span>✓ أُضيف المنتج السابق (SKU: <b dir="ltr">{quickDone.sku}</b>)</span>
+                <Link href={`/admin/products/${quickDone.product_id}`} target="_blank"
+                  className="flex items-center gap-1 text-xs font-semibold underline shrink-0">
+                  أضف صوراً <ExternalLink size={11}/>
+                </Link>
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">اسم المنتج *</label>
+                <input type="text" value={quickForm.name_ar} autoFocus
+                  placeholder="مثال: iPhone 17 Pro Max 256GB"
+                  onChange={e => setQ("name_ar", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">السعر (﷼) *</label>
+                <input type="number" min="0" dir="ltr" value={quickForm.base_price}
+                  onChange={e => setQ("base_price", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">السعر قبل الخصم</label>
+                <input type="number" min="0" dir="ltr" value={quickForm.compare_at_price}
+                  placeholder="اختياري"
+                  onChange={e => setQ("compare_at_price", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">SKU</label>
+                <input type="text" dir="ltr" value={quickForm.sku}
+                  placeholder="يولَّد تلقائياً إن تُرك فارغاً"
+                  onChange={e => setQ("sku", e.target.value.toUpperCase())}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm font-mono text-[var(--text-1)] outline-none focus:border-brand-500"/>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الفئة</label>
+                <select value={quickForm.category_id} onChange={e => setQ("category_id", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
+                  <option value="">بدون فئة</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الماركة</label>
+                <select value={quickForm.brand_id} onChange={e => setQ("brand_id", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
+                  <option value="">بدون ماركة</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الحالة</label>
+                <select value={quickForm.condition} onChange={e => setQ("condition", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
+                  <option value="new">جديد</option>
+                  <option value="used_certified">مستعمل مفحوص</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الكمية الابتدائية</label>
+                <input type="number" min="0" dir="ltr" value={quickForm.quantity}
+                  onChange={e => setQ("quantity", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">حد إعادة الطلب</label>
+                <input type="number" min="0" dir="ltr" value={quickForm.reorder_level}
+                  onChange={e => setQ("reorder_level", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">موقع التخزين</label>
+                <input type="text" value={quickForm.location}
+                  placeholder="رف A3، الدرج 2..."
+                  onChange={e => setQ("location", e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+              </div>
+              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-[var(--border)] px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-1)]">نشر مباشرة في المتجر</p>
+                  <p className="text-[11px] text-[var(--text-muted)]">أوقفه ليُحفظ كمسودة تكملها لاحقاً بالصور والتفاصيل</p>
+                </div>
+                <button type="button" role="switch" aria-checked={quickForm.status === "published"}
+                  onClick={() => setQ("status", quickForm.status === "published" ? "draft" : "published")}
+                  className={`relative h-6 w-11 rounded-full transition-colors ${quickForm.status === "published" ? "bg-brand-700" : "bg-[var(--border)]"}`}>
+                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${quickForm.status === "published" ? "start-0.5" : "start-[22px]"}`}/>
+                </button>
+              </div>
+            </div>
+
+            {quickError && <p className="text-sm text-red-500">⚠ {quickError}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => submitQuickAdd(false)} disabled={quickSaving || !quickForm.name_ar || !quickForm.base_price}
+                className="btn-primary flex-1 justify-center gap-2 disabled:opacity-50">
+                {quickSaving ? <><Loader2 size={14} className="animate-spin"/> جارٍ الحفظ...</> : "حفظ وإغلاق"}
+              </button>
+              <button onClick={() => submitQuickAdd(true)} disabled={quickSaving || !quickForm.name_ar || !quickForm.base_price}
+                className="btn-ghost border border-[var(--border)] flex-1 justify-center disabled:opacity-50">
+                حفظ وإضافة آخر
+              </button>
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)] text-center">
+              لإضافة صور وخيارات (ألوان/سعات) افتح المنتج من صفحة المنتجات بعد الحفظ
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Import Modal */}
       {importModal && (
