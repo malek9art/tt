@@ -295,7 +295,7 @@ function ReceiptAttach({ paymentId }: { paymentId: string }) {
 export default function CheckoutPage() {
   const router  = useRouter();
   const { items, totalPrice, clearCart } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, loading: authLoading } = useAuthStore();
 
   const [step,           setStep]          = useState<Step>("info");
   const [providerCode,   setProviderCode]  = useState("cod");
@@ -322,8 +322,9 @@ export default function CheckoutPage() {
   const setF = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   useEffect(() => {
-    if (!user) router.replace("/login?redirectTo=/checkout");
-  }, [user, router]);
+    // ننتظر تحميل الجلسة أولاً — وإلا يُقذف المستخدم المسجّل إلى صفحة الدخول
+    if (!authLoading && !user) router.replace("/login?redirectTo=/checkout");
+  }, [user, authLoading, router]);
 
   // Load active providers
   useEffect(() => {

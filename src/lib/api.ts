@@ -32,9 +32,13 @@ export async function getProducts(opts: {
   const { category, brand, search, sort = "newest", page = 1, limit = 12 } = opts;
   const from = (page - 1) * limit;
 
+  // !inner مطلوب حتى تُفلتر صفوف المنتجات نفسها وليس العلاقة المضمّنة فقط
+  const catRel   = category ? "categories!inner(name_ar,slug)" : "categories(name_ar,slug)";
+  const brandRel = brand    ? "brands!inner(name,slug)"        : "brands(name)";
+
   let query = supabase
     .from("products")
-    .select(`*, product_images(*), product_variants(*), categories(name_ar,slug), brands(name)`, { count: "exact" })
+    .select(`*, product_images(*), product_variants(*), ${catRel}, ${brandRel}`, { count: "exact" })
     .eq("status", "published");
 
   if (category) query = query.eq("categories.slug", category);
@@ -62,6 +66,23 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     .single();
   if (error) { console.error("getProductBySlug:", error); return null; }
   return data;
+}
+
+// ===== البانرات (بيانات عامة — بدون كوكيز حتى تبقى الصفحة قابلة للتخزين المؤقت) =====
+export type Banner = {
+  id: string; title: string | null; subtitle: string | null;
+  image_url: string; link_url: string | null; link_label: string | null;
+  badge_text: string | null; sort_order: number;
+};
+
+export async function getBanners(): Promise<Banner[]> {
+  const { data, error } = await supabase
+    .from("banners")
+    .select("id, title, subtitle, image_url, link_url, link_label, badge_text, sort_order")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  if (error) { console.error("getBanners:", error); return []; }
+  return data ?? [];
 }
 
 // ===== أحدث المنتجات =====

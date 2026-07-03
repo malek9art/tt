@@ -16,7 +16,7 @@ import { FaWhatsapp } from "react-icons/fa6";
 const NAV = [
   { href: "/",                        label: "الرئيسية"    },
   { href: "/products",                label: "المنتجات"    },
-  { href: "/products?cat=phones",     label: "هواتف"       },
+  { href: "/products?cat=smartphones",label: "هواتف"       },
   { href: "/products?cat=accessories",label: "إكسسوارات"  },
   { href: "/products?cat=spare-parts",label: "قطع الغيار" },
 ];

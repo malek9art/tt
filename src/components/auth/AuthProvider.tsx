@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuthStore } from "@/store/authStore";
+import { useWishlistStore } from "@/store/wishlistStore";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,13 +12,15 @@ const supabase = createBrowserClient(
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setSession, fetchProfile } = useAuthStore();
   useEffect(() => {
+    const wishlist = useWishlistStore.getState();
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) { fetchProfile(session.user.id); wishlist.load(session.user.id); }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setSession(session);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) { fetchProfile(session.user.id); wishlist.load(session.user.id); }
+      else wishlist.reset();
     });
     return () => subscription.unsubscribe();
   }, [setSession, fetchProfile]);

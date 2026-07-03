@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { buildSlug } from "@/lib/slug";
 
 export async function GET(request: NextRequest) {
   const { error, supabase } = await requireAdmin("products:read");
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error: dbErr } = await supabase
     .from("products")
-    .insert({ ...body, created_by: user!.id })
+    .insert({ ...body, slug: buildSlug(body), created_by: user!.id })
     .select("id, slug")
     .single();
 

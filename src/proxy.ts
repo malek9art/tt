@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
 
-  // ===== استثناءات: لا تحتاج تحقق =====
-  const publicPaths = [
-    "/admin/login",
-    "/login",
-    "/register",
-    "/auth/callback",
-    "/",
-  ];
-
-  // المسارات العامة تمر مباشرة
-  if (publicPaths.some(p => pathname === p || pathname.startsWith("/products"))) {
+  // صفحة دخول الإدارة عامة
+  if (pathname === "/admin/login") {
     return response;
   }
 
@@ -73,8 +64,8 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// يعمل فقط على المسارات المحمية — الصفحات العامة (الرئيسية، المنتجات، السلة…)
+// لا تمر عبر أي تحقق شبكي، ومسارات API تتحقق من الصلاحيات بنفسها
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/account/:path*", "/checkout", "/admin/:path*"],
 };

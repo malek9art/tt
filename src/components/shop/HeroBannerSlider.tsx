@@ -8,7 +8,7 @@ import { HiArrowLeft } from "react-icons/hi2";
 
 interface Banner {
   id: string;
-  title: string;
+  title: string | null;
   subtitle?: string | null;
   image_url: string;
   link_url?: string | null;
@@ -59,7 +59,7 @@ export default function HeroBannerSlider({ banners }: Props) {
           {/* صورة الخلفية */}
           <Image
             src={banner.image_url}
-            alt={banner.title}
+            alt={banner.title ?? "بانر"}
             fill
             sizes="100vw"
             priority

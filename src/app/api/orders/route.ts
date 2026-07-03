@@ -96,7 +96,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const subtotal = body.items.reduce((s, i) => s + i.subtotal, 0);
+    // ===== الأسعار من قاعدة البيانات — لا نثق بأسعار المتصفح =====
+    const productIds = [...new Set(body.items.map(i => i.product_id))];
+    const variantIds = body.items.map(i => i.variant_id).filter((v): v is string => Boolean(v));
+
+    const [{ data: dbProducts }, { data: dbVariants }] = await Promise.all([
+      supabase.from("products").select("id, base_price, status").in("id", productIds),
+      variantIds.length
+        ? supabase.from("product_variants").select("id, product_id, price, is_active").in("id", variantIds)
+        : Promise.resolve({ data: [] as { id: string; product_id: string; price: number; is_active: boolean }[] }),
+    ]);
+
+    const productMap = new Map((dbProducts ?? []).map(p => [p.id, p]));
+    const variantMap = new Map((dbVariants ?? []).map(v => [v.id, v]));
+
+    const items: OrderItem[] = [];
+    for (const item of body.items) {
+      const product = productMap.get(item.product_id);
+      if (!product || product.status !== "published") {
+        return NextResponse.json({ error: "أحد المنتجات لم يعد متوفراً — حدّث السلة" }, { status: 400 });
+      }
+      let price = product.base_price;
+      if (item.variant_id) {
+        const variant = variantMap.get(item.variant_id);
+        if (!variant || !variant.is_active || variant.product_id !== item.product_id) {
+          return NextResponse.json({ error: "أحد خيارات المنتج لم يعد متوفراً — حدّث السلة" }, { status: 400 });
+        }
+        price = variant.price;
+      }
+      const quantity = Math.max(1, Math.floor(item.quantity));
+      items.push({ ...item, price, quantity, subtotal: price * quantity });
+    }
+
+    const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
     const currency = "YER";
 
     // قراءة حد الشحن المجاني من الإعدادات
@@ -158,7 +190,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "فشل في إنشاء الطلب" }, { status: 500 });
     }
 
-    const orderItems = body.items.map(item => ({
+    const orderItems = items.map(item => ({
       order_id:       order.id,
       product_id:     item.product_id,
       variant_id:     item.variant_id,

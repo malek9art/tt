@@ -13,6 +13,8 @@ import { FaWhatsapp } from "react-icons/fa6";
 import type { Product, ProductVariant } from "@/lib/supabase";
 import { formatPrice, discountPercent } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
+import { useAuthStore } from "@/store/authStore";
+import { useWishlistStore } from "@/store/wishlistStore";
 import { toast } from "@/store/toastStore";
 import ProductCard from "@/components/shop/ProductCard";
 
@@ -32,7 +34,9 @@ export default function ProductDetails({ product, related }: Props) {
   );
   const [qty,      setQty]      = useState(1);
   const [added,    setAdded]    = useState(false);
-  const [wished,   setWished]   = useState(false);
+  const { user } = useAuthStore();
+  const wished = useWishlistStore(s => Boolean(s.ids[product.id]));
+  const toggleWishlist = useWishlistStore(s => s.toggle);
   const [descOpen, setDescOpen] = useState(true);
   const [specOpen, setSpecOpen] = useState(true);
 
@@ -73,7 +77,9 @@ export default function ProductDetails({ product, related }: Props) {
     }
   };
 
-  const waUrl = `https://wa.me/?text=${encodeURIComponent(`${product.name_ar}\n${window?.location?.href ?? ""}`)}`;
+  // لا تلمس window أثناء SSR — نبني الرابط من الـ slug مباشرة
+  const productUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/products/${product.slug}`;
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(`${product.name_ar}\n${productUrl}`)}`;
 
   return (
     <div dir="rtl">
@@ -262,7 +268,7 @@ export default function ProductDetails({ product, related }: Props) {
               </button>
 
               {/* المفضلة */}
-              <button onClick={() => { setWished(w => !w); toast.info(wished ? "تمت إزالة المنتج من المفضلة" : "تمت إضافة المنتج للمفضلة"); }}
+              <button onClick={() => toggleWishlist(product.id, user?.id)}
                 className={`flex h-12 w-12 items-center justify-center rounded-xl border transition-all ${
                   wished
                     ? "border-red-500 bg-red-500 text-white"

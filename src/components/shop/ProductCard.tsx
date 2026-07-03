@@ -7,6 +7,8 @@ import { HiStar } from "react-icons/hi";
 import { type Product } from "@/lib/supabase";
 import { formatPrice, discountPercent, getPrimaryImage, getLowestPrice, getHighestComparePrice } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
+import { useAuthStore } from "@/store/authStore";
+import { useWishlistStore } from "@/store/wishlistStore";
 import { toast } from "@/store/toastStore";
 
 interface Props { product: Product; }
@@ -15,8 +17,10 @@ const FALLBACK_IMG = "https://placehold.co/400x400/09444C/FFE100?text=%F0%9F%93%
 
 export default function ProductCard({ product }: Props) {
   const { addItem } = useCartStore();
-  const [added,   setAdded]   = useState(false);
-  const [wished,  setWished]  = useState(false);
+  const { user } = useAuthStore();
+  const wished = useWishlistStore(s => Boolean(s.ids[product.id]));
+  const toggleWishlist = useWishlistStore(s => s.toggle);
+  const [added, setAdded] = useState(false);
   const imageUrl = getPrimaryImage(product) || FALLBACK_IMG;
   const price    = getLowestPrice(product);
   const oldPrice = getHighestComparePrice(product);
@@ -33,8 +37,7 @@ export default function ProductCard({ product }: Props) {
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    setWished(w => !w);
-    toast.info(wished ? "تمت إزالة المنتج من المفضلة" : "تمت إضافة المنتج إلى المفضلة");
+    toggleWishlist(product.id, user?.id);
   };
 
   return (

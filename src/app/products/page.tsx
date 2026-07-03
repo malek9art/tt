@@ -34,6 +34,15 @@ export default async function ProductsPage({ searchParams }: PageProps) {
 
   const totalPages = Math.ceil(total / 12);
 
+  // يبني رابط /products مع الحفاظ على كل الفلاتر الحالية (فئة، بحث، فرز، صفحة)
+  const buildUrl = (overrides: Record<string, string | undefined>) => {
+    const merged: Record<string, string | undefined> = { cat, q: search, sort, ...overrides };
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(merged)) if (v) sp.set(k, v);
+    const qs = sp.toString();
+    return qs ? `/products?${qs}` : "/products";
+  };
+
   return (
     <div className="min-h-screen">
       <Header />
@@ -85,7 +94,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
                 <div className="flex gap-1">
                   {SORT_OPTIONS.map(o => (
                     <Link key={o.value}
-                      href={`/products?${new URLSearchParams({...(cat?{cat}:{}), sort:o.value}).toString()}`}
+                      href={buildUrl({ sort: o.value })}
                       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${sort===o.value ? "bg-brand-700 text-white" : "border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300"}`}>
                       {o.label}
                     </Link>
@@ -127,7 +136,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
               <div className="mt-8 flex items-center justify-center gap-2">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                   <Link key={p}
-                    href={`/products?${new URLSearchParams({...(cat?{cat}:{}), sort, page:String(p)}).toString()}`}
+                    href={buildUrl({ page: p > 1 ? String(p) : undefined })}
                     className={`flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors ${page===p ? "bg-brand-700 text-white" : "border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300"}`}>
                     {p}
                   </Link>

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
+import { useWishlistStore } from "@/store/wishlistStore";
 import Image from "next/image";
 import Link from "next/link";
 import { Heart, ShoppingCart, Trash2 } from "lucide-react";
@@ -28,29 +29,37 @@ export default function WishlistPage() {
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     const { data } = await sb
       .from("wishlists")
       .select("id, products(id, name_ar, slug, base_price, currency, product_images(url, is_primary))")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    // نحوّل كل عنصر يدوياً لتجنب TypeScript error
+    // العلاقة many-to-one تعود ككائن مفرد (وليس مصفوفة)
     const mapped: WishItem[] = (data ?? []).map((row: unknown) => {
       const r = row as { id: string; products: unknown };
-      const pArr = Array.isArray(r.products) ? r.products : [];
-      const p    = pArr[0] as WProduct | undefined;
+      const p = (Array.isArray(r.products) ? r.products[0] : r.products) as WProduct | undefined;
       return { id: r.id, products: p ?? null };
     });
     setItems(mapped);
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [user]);
 
-  const remove = async (id: string) => {
+  const remove = async (id: string, productId?: string) => {
     await sb.from("wishlists").delete().eq("id", id);
     setItems(prev => prev.filter(x => x.id !== id));
+    // مزامنة أيقونات القلب في بطاقات المنتجات
+    if (productId) {
+      useWishlistStore.setState(s => {
+        const next = { ...s.ids };
+        delete next[productId];
+        return { ids: next };
+      });
+    }
   };
 
   return (
@@ -99,7 +108,7 @@ export default function WishlistPage() {
                       className="btn-primary flex-1 justify-center text-sm py-2 gap-1.5">
                       <ShoppingCart size={14}/> أضف للسلة
                     </button>
-                    <button onClick={() => remove(item.id)}
+                    <button onClick={() => remove(item.id, p.id)}
                       className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border)] text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                       <Trash2 size={14}/>
                     </button>

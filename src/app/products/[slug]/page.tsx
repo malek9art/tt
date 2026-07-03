@@ -6,6 +6,8 @@ import { getProductBySlug, getLatestProducts } from "@/lib/api";
 import ProductDetails from "./ProductDetails";
 import type { Product } from "@/lib/supabase";
 
+export const revalidate = 60;
+
 interface Props { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

@@ -12,21 +12,9 @@ import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/shop/ProductCard";
 import ProductCardSkeleton from "@/components/shop/ProductCardSkeleton";
 import HeroBannerSlider from "@/components/shop/HeroBannerSlider";
-import { getFeaturedProducts, getLatestProducts, getCategories } from "@/lib/api";
-import { createSupabaseServer as createClient } from "@/lib/supabase-server";
+import { getFeaturedProducts, getLatestProducts, getCategories, getBanners } from "@/lib/api";
 
 export const revalidate = 60;
-
-async function getBanners() {
-  try {
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("banners")
-      .select("id, title, subtitle, image_url, link_url, link_label, badge_text, sort_order")
-      .order("sort_order", { ascending: true });
-    return data ?? [];
-  } catch { return []; }
-}
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   smartphones:      HiDevicePhoneMobile,

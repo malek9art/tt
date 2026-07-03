@@ -9,11 +9,12 @@ import { Package, MapPin, User, LogOut, ChevronLeft, ShieldCheck } from "lucide-
 
 export default function AccountPage() {
   const router          = useRouter();
-  const { user, profile, signOut } = useAuthStore();
+  const { user, profile, signOut, loading } = useAuthStore();
 
   useEffect(() => {
-    if (!user) router.replace("/login?redirectTo=/account");
-  }, [user, router]);
+    // ننتظر تحميل الجلسة أولاً — وإلا يُقذف المستخدم المسجّل إلى صفحة الدخول
+    if (!loading && !user) router.replace("/login?redirectTo=/account");
+  }, [user, loading, router]);
 
   if (!user) return null;
 
