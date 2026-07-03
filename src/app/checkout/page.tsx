@@ -303,6 +303,7 @@ export default function CheckoutPage() {
   const [loading,        setLoading]       = useState(false);
   const [orderNum,       setOrderNum]      = useState("");
   const [orderId,        setOrderId]       = useState("");
+  const [trackToken,     setTrackToken]    = useState("");
   const [totalFinal,     setTotalFinal]    = useState(0);
   const [instruction,    setInstruction]   = useState<PaymentInstruction | null>(null);
   const [paymentId,      setPaymentId]     = useState("");
@@ -433,6 +434,7 @@ export default function CheckoutPage() {
 
     setOrderId(orderData.order_id);
     setOrderNum(orderData.order_number);
+    setTrackToken(orderData.tracking_token ?? "");
     setTotalFinal(orderData.total);
 
     // 2) Initiate payment via gateway
@@ -547,6 +549,20 @@ export default function CheckoutPage() {
                   </p>
                 </div>
               </div>
+            )}
+
+            {trackToken && (
+              <Link href={`/track/${trackToken}`}
+                className="card-base p-4 flex items-center justify-between gap-3 hover:border-brand-400 transition-colors group">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-xl">📦</span>
+                  <div>
+                    <p className="font-semibold text-sm text-[var(--text-1)]">تتبع طلبك لحظة بلحظة</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">احفظ هذا الرابط لمتابعة حالة التوصيل</p>
+                  </div>
+                </div>
+                <HiArrowLeft className="text-brand-700 dark:text-accent-400 group-hover:-translate-x-1 transition-transform"/>
+              </Link>
             )}
 
             <div className="flex gap-3">

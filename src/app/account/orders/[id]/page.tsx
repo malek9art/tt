@@ -38,12 +38,13 @@ type Row = Record<string,any>;
 
 export default function OrderDetailPage() {
   const { id }    = useParams<{ id:string }>();
-  const { user }  = useAuthStore();
+  const { user, loading: authLoading } = useAuthStore();
   const router    = useRouter();
   const [order,   setOrder]   = useState<Row|null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return; // ننتظر تحميل الجلسة قبل الحكم
     if (!user) { router.replace("/login?redirectTo=/account/orders"); return; }
 
     sb.from("orders")
@@ -51,10 +52,11 @@ export default function OrderDetailPage() {
         id, order_number, status, payment_status,
         subtotal, shipping_fee, discount_amount, total_amount, currency,
         address_snapshot, notes, created_at, updated_at,
+        tracking_token,
         order_items(
           id, name_snapshot, sku_snapshot, attrs_snapshot,
           price, quantity, subtotal,
-          product_images:product_id(url, is_primary)
+          product:product_id(product_images(url, is_primary))
         ),
         shipments(
           id, tracking_number, status,
@@ -72,7 +74,7 @@ export default function OrderDetailPage() {
         setOrder(data as Row);
         setLoading(false);
       });
-  }, [id, user, router]);
+  }, [id, user, authLoading, router]);
 
   if (loading) return (
     <div className="min-h-screen">
@@ -128,6 +130,12 @@ export default function OrderDetailPage() {
               })}
             </p>
           </div>
+          {order.tracking_token ? (
+            <Link href={`/track/${String(order.tracking_token)}`}
+              className="mr-auto btn-ghost border border-[var(--border)] text-sm gap-1.5 hover:border-brand-400">
+              📦 تتبع الشحنة
+            </Link>
+          ) : null}
         </div>
 
         {/* شريط التقدم */}
@@ -179,7 +187,9 @@ export default function OrderDetailPage() {
           </div>
           <div className="divide-y divide-[var(--border)]">
             {items.map(item => {
-              const imgs  = item.product_images as Row[]|null;
+              const prodRaw = item.product as Row | Row[] | null;
+              const prod  = Array.isArray(prodRaw) ? prodRaw[0] : prodRaw;
+              const imgs  = (prod?.product_images ?? null) as Row[]|null;
               const img   = imgs?.find((i:Row)=>i.is_primary)?.url ?? imgs?.[0]?.url;
               const attrs = item.attrs_snapshot as Record<string,string>|null;
               return (

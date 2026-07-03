@@ -35,11 +35,12 @@ interface Order {
 
 export default function OrdersPage() {
   const router      = useRouter();
-  const { user }    = useAuthStore();
+  const { user, loading: authLoading } = useAuthStore();
   const [orders,  setOrders]  = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return; // ننتظر تحميل الجلسة قبل الحكم
     if (!user) { router.replace("/login?redirectTo=/account/orders"); return; }
     supabase
       .from("orders")
@@ -47,7 +48,7 @@ export default function OrdersPage() {
       .eq("customer_id", user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => { setOrders((data as Order[]) ?? []); setLoading(false); });
-  }, [user, router]);
+  }, [user, authLoading, router]);
 
   return (
     <div className="min-h-screen">

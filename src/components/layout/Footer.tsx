@@ -57,7 +57,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               {[
                 { href:"/products",                 label:"جميع المنتجات" },
-                { href:"/products?cat=phones",      label:"الهواتف الذكية" },
+                { href:"/products?cat=smartphones", label:"الهواتف الذكية" },
                 { href:"/products?cat=accessories", label:"الإكسسوارات" },
                 { href:"/products?cat=spare-parts", label:"قطع الغيار" },
                 { href:"/track",                    label:"تتبع طلبك" },

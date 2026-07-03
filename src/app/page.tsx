@@ -10,7 +10,6 @@ import {
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/shop/ProductCard";
-import ProductCardSkeleton from "@/components/shop/ProductCardSkeleton";
 import HeroBannerSlider from "@/components/shop/HeroBannerSlider";
 import { getFeaturedProducts, getLatestProducts, getCategories, getBanners } from "@/lib/api";
 
@@ -137,27 +136,23 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* المنتجات المميزة */}
-      <section className="bg-[var(--bg-card)] py-12">
-        <div className="container-main">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="section-title">منتجات مميزة ⭐</h2>
-            <Link href="/products?featured=true" className="text-sm text-brand-700 hover:text-brand-900 dark:text-accent-400 font-medium">
-              عرض الكل
-            </Link>
-          </div>
-          {featured.length > 0 ? (
+      {/* المنتجات المميزة — تُخفى بالكامل إن لم توجد منتجات مميزة */}
+      {featured.length > 0 && (
+        <section className="bg-[var(--bg-card)] py-12">
+          <div className="container-main">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="section-title">منتجات مميزة ⭐</h2>
+              <Link href="/products" className="text-sm text-brand-700 hover:text-brand-900 dark:text-accent-400 font-medium">
+                عرض الكل
+              </Link>
+            </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {featured.map((p: any) => <ProductCard key={p.id} product={p} />)}
+              {featured.map((p: any) => <ProductCard key={p.id} product={p} />)}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)}
-            </div>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
       {/* أحدث المنتجات */}
       <section className="py-12">

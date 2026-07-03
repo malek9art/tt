@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
         notes:            body.notes || null,
         coupon_id:        couponId,
       })
-      .select("id, order_number")
+      .select("id, order_number, tracking_token")
       .single();
 
     if (orderError || !order) {
@@ -237,9 +237,10 @@ export async function POST(request: NextRequest) {
     notifyNewOrder(order.order_number, order.id, total).catch(() => {});
 
     return NextResponse.json({
-      success:      true,
-      order_id:     order.id,
-      order_number: order.order_number,
+      success:        true,
+      order_id:       order.id,
+      order_number:   order.order_number,
+      tracking_token: order.tracking_token,
       total,
       currency,
     });

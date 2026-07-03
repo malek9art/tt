@@ -3,7 +3,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { HiHeart, HiShoppingCart, HiCheck } from "react-icons/hi2";
-import { HiStar } from "react-icons/hi";
 import { type Product } from "@/lib/supabase";
 import { formatPrice, discountPercent, getPrimaryImage, getLowestPrice, getHighestComparePrice } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -68,12 +67,13 @@ export default function ProductCard({ product }: Props) {
             )}
           </div>
 
-          {/* زر المفضلة */}
+          {/* زر المفضلة — ظاهر دائماً على اللمس، وعند التمرير على سطح المكتب */}
           <button onClick={handleWishlist}
+            aria-label={wished ? "إزالة من المفضلة" : "إضافة إلى المفضلة"}
             className={`absolute top-2 start-2 flex h-8 w-8 items-center justify-center rounded-full shadow transition-all duration-200
               ${wished
                 ? "bg-red-500 text-white opacity-100"
-                : "bg-white/80 dark:bg-brand-800/80 text-[var(--text-2)] opacity-0 group-hover:opacity-100 hover:text-red-500"
+                : "bg-white/80 dark:bg-brand-800/80 text-[var(--text-2)] opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-red-500"
               }`}>
             <HiHeart className={`text-base ${wished ? "fill-white" : ""}`}/>
           </button>
@@ -105,16 +105,6 @@ export default function ProductCard({ product }: Props) {
             {product.name_ar}
           </h3>
 
-          {/* التقييم */}
-          <div className="mb-2.5 flex items-center gap-1">
-            <div className="flex gap-0.5">
-              {[1,2,3,4,5].map(s => (
-                <HiStar key={s} className="text-accent-500 text-xs"/>
-              ))}
-            </div>
-            <span className="text-[10px] text-[var(--text-muted)]">(5.0)</span>
-          </div>
-
           {/* السعر + زر السلة للجوال */}
           <div className="flex items-end justify-between gap-2">
             <div>
@@ -128,7 +118,7 @@ export default function ProductCard({ product }: Props) {
               )}
             </div>
             {/* زر السلة الثابت للجوال */}
-            <button onClick={handleAddToCart}
+            <button onClick={handleAddToCart} aria-label="أضف إلى السلة"
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200 md:hidden
                 ${added ? "bg-green-500 text-white" : "bg-brand-700 hover:bg-brand-800 active:scale-90 text-white"}`}>
               {added ? <HiCheck className="text-sm"/> : <HiShoppingCart className="text-sm"/>}

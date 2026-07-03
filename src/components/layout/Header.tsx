@@ -118,7 +118,7 @@ export default function Header() {
           )}
 
           {/* بحث — جوال */}
-          <button onClick={() => setSearchOpen(!searchOpen)}
+          <button onClick={() => setSearchOpen(!searchOpen)} aria-label="بحث"
             className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors md:hidden">
             <HiMagnifyingGlass className="text-lg"/>
           </button>
@@ -127,13 +127,14 @@ export default function Header() {
           {mounted && (
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              aria-label={theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
               className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors">
               {theme === "dark" ? <HiSun className="text-lg"/> : <HiMoon className="text-lg"/>}
             </button>
           )}
 
           {/* السلة */}
-          <button onClick={toggleCart}
+          <button onClick={toggleCart} aria-label={`السلة${count > 0 ? ` — ${count} منتج` : ""}`}
             className="relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors">
             <HiShoppingCart className="text-lg"/>
             {count > 0 && (
@@ -190,7 +191,7 @@ export default function Header() {
           )}
 
           {/* قائمة جوال */}
-          <button onClick={() => setMenuOpen(!menuOpen)}
+          <button onClick={() => setMenuOpen(!menuOpen)} aria-label="القائمة"
             className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-2)] hover:bg-[var(--border)] transition-colors lg:hidden">
             {menuOpen ? <HiXMark className="text-lg"/> : <HiBars3 className="text-lg"/>}
           </button>
