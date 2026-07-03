@@ -13,6 +13,7 @@ interface WalletConfig {
   accountNumber?: string;      // legacy single account
   accountName?: string;
   bankName?: string;
+  walletPhone?: string;        // رقم الجوال/المحفظة — يُعرض مع رمز QR
   accounts?: CurrencyAccount[]; // multi-currency accounts
   instructions?: string[];
 }
@@ -56,8 +57,12 @@ export class ManualWalletProvider implements IPaymentProvider {
         accountName,
         bankName:      this.cfg.bankName,
         referenceNumber: reference,
+        qrData:        this.cfg.walletPhone || undefined,
         steps,
-        extra: accounts.length > 0 ? { accounts } : undefined,
+        extra: {
+          ...(accounts.length > 0 ? { accounts } : {}),
+          ...(this.cfg.walletPhone ? { walletPhone: this.cfg.walletPhone } : {}),
+        },
       },
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };

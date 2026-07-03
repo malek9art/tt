@@ -20,6 +20,8 @@ interface Provider {
   is_active: boolean;
   is_test_mode: boolean;
   display_order: number;
+  min_amount: number | null;
+  max_amount: number | null;
   metadata: {
     icon?: string; name_ar?: string; description?: string;
     type?: string; confirmation?: string; logo_url?: string; custom?: boolean;
@@ -60,6 +62,7 @@ const SECTIONS: Array<{
 const CONFIG_FIELDS: Record<string, Array<{ key: string; label: string; placeholder?: string }>> = {
   manual_wallet: [
     { key: "account_name",       label: "اسم صاحب المحفظة", placeholder: "أحمد محمد" },
+    { key: "wallet_phone",       label: "رقم الجوال/المحفظة (يظهر مع رمز QR)", placeholder: "7XXXXXXXX" },
     { key: "account_number_yer", label: "رقم المحفظة — ريال يمني (YER)", placeholder: "7XXXXXXXX" },
     { key: "account_number_sar", label: "رقم المحفظة — ريال سعودي (SAR)", placeholder: "7XXXXXXXX" },
     { key: "account_number_usd", label: "رقم المحفظة — دولار أمريكي (USD)", placeholder: "7XXXXXXXX" },
@@ -75,6 +78,13 @@ const CONFIG_FIELDS: Record<string, Array<{ key: string; label: string; placehol
   stripe: [],
   cod:    [],
 };
+
+// حقول الرسوم — لكل الوسائل اليدوية
+const FEE_FIELDS: Array<{ key: string; label: string; placeholder: string }> = [
+  { key: "fee_percent", label: "نسبة رسوم المزود % (اختياري — للعرض فقط)", placeholder: "1.5" },
+  { key: "fee_fixed",   label: "رسوم ثابتة ﷼ (اختياري — للعرض فقط)",       placeholder: "100" },
+];
+const MANUAL_TYPES = ["manual_wallet", "bank_transfer", "transfer_point"];
 
 const ADD_TYPE_LABELS: Record<string, string> = {
   manual_wallet: "محفظة إلكترونية",
@@ -114,6 +124,10 @@ export default function PaymentProvidersPage() {
   const [editDesc,  setEditDesc]   = useState("");
   const [logoFile,  setLogoFile]   = useState<File | null>(null);
   const [cfgSaving, setCfgSaving]  = useState(false);
+  const [editMin,   setEditMin]    = useState("");
+  const [editMax,   setEditMax]    = useState("");
+  const [editOrder, setEditOrder]  = useState("");
+  const [editInstr, setEditInstr]  = useState("");
 
   // Add modal
   const [addModal,  setAddModal]   = useState<string | null>(null); // provider type
@@ -183,10 +197,23 @@ export default function PaymentProvidersPage() {
     setSaving(null);
   };
 
+  // التعليمات تُخزَّن في config.instructions — سطر لكل خطوة
+  const instructionsToText = (raw?: string): string => {
+    if (!raw?.trim()) return "";
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.join("\n") : raw;
+    } catch { return raw; }
+  };
+
   const openEdit = (p: Provider) => {
     setCfg({ ...(p.config ?? {}) });
     setEditName(p.metadata?.name_ar ?? p.name);
     setEditDesc(p.metadata?.description ?? "");
+    setEditMin(p.min_amount != null ? String(p.min_amount) : "");
+    setEditMax(p.max_amount != null ? String(p.max_amount) : "");
+    setEditOrder(String(p.display_order ?? 0));
+    setEditInstr(instructionsToText(p.config?.instructions));
     setLogoFile(null);
     setEditModal(p);
   };
@@ -197,10 +224,18 @@ export default function PaymentProvidersPage() {
     let logoUrl: string | undefined;
     if (logoFile) logoUrl = (await uploadLogo(logoFile, editModal.code)) ?? undefined;
 
+    const steps = editInstr.split("\n").map(s => s.trim()).filter(Boolean);
+    const nextCfg = { ...cfg };
+    if (steps.length > 0) nextCfg.instructions = JSON.stringify(steps);
+    else delete nextCfg.instructions;
+
     const d = await patchProvider(editModal.id, {
-      config: cfg,
+      config: nextCfg,
       name_ar: editName,
       description: editDesc,
+      min_amount:    editMin ? Number(editMin) : null,
+      max_amount:    editMax ? Number(editMax) : null,
+      display_order: editOrder ? Number(editOrder) : 0,
       ...(logoUrl ? { logo_url: logoUrl } : {}),
     });
     if (d) { await load(); setEditModal(null); }
@@ -417,6 +452,56 @@ export default function PaymentProvidersPage() {
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-brand-500"/>
                 </div>
               ))}
+
+              {/* حدود المبلغ والترتيب */}
+              <div className="rounded-xl border border-[var(--border)] p-4 space-y-3">
+                <p className="text-xs font-bold text-[var(--text-1)]">القيود والترتيب</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--text-2)] block mb-1">حد أدنى ﷼</label>
+                    <input type="number" dir="ltr" placeholder="—" value={editMin}
+                      onChange={e => setEditMin(e.target.value)}
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-2.5 py-2 text-sm focus:outline-none focus:border-brand-500"/>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--text-2)] block mb-1">حد أعلى ﷼</label>
+                    <input type="number" dir="ltr" placeholder="—" value={editMax}
+                      onChange={e => setEditMax(e.target.value)}
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-2.5 py-2 text-sm focus:outline-none focus:border-brand-500"/>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-[var(--text-2)] block mb-1">الترتيب</label>
+                    <input type="number" dir="ltr" value={editOrder}
+                      onChange={e => setEditOrder(e.target.value)}
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-2.5 py-2 text-sm focus:outline-none focus:border-brand-500"/>
+                  </div>
+                </div>
+                {MANUAL_TYPES.includes(type) && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {FEE_FIELDS.map(f => (
+                      <div key={f.key}>
+                        <label className="text-[11px] font-medium text-[var(--text-2)] block mb-1">{f.label}</label>
+                        <input type="number" dir="ltr" placeholder={f.placeholder} value={cfg[f.key] ?? ""}
+                          onChange={e => setCfg(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-2.5 py-2 text-sm focus:outline-none focus:border-brand-500"/>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* تعليمات مخصصة للعميل */}
+              {MANUAL_TYPES.includes(type) && (
+                <div>
+                  <label className="text-xs font-medium text-[var(--text-2)] block mb-1.5">
+                    تعليمات الدفع للعميل (سطر لكل خطوة — اتركها فارغة للتعليمات التلقائية)
+                  </label>
+                  <textarea rows={4} value={editInstr}
+                    onChange={e => setEditInstr(e.target.value)}
+                    placeholder={"افتح تطبيق المحفظة\nحوّل المبلغ إلى الرقم الظاهر\nاكتب المرجع في بيان التحويل"}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 resize-none"/>
+                </div>
+              )}
 
               {/* Logo upload */}
               <div>

@@ -10,6 +10,8 @@ export interface TransferPoint {
   accountName?: string;
   notes?: string;
   iconUrl?: string;
+  /** قيمة QR مخصصة — تحل محل الهاتف في الرمز عند وجودها */
+  qrValue?: string;
 }
 
 // Adapter for money-transfer networks (Kuraimi, Qutaibi…).

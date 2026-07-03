@@ -45,10 +45,25 @@ interface Coupon {
 }
 
 interface Provider {
-  code: string; name: string; metadata: {
+  code: string; name: string;
+  min_amount?: number | null;
+  max_amount?: number | null;
+  config?: { fee_percent?: string; fee_fixed?: string } & Record<string, string>;
+  metadata: {
     icon: string; name_ar: string; description: string;
     type: string; confirmation: string; logo_url?: string;
   };
+}
+
+// نص وصف رسوم المزود إن وُجدت (للعرض فقط — يتحملها العميل عند التحويل)
+function providerFeeLabel(p: Provider): string | null {
+  const pct   = Number(p.config?.fee_percent ?? 0);
+  const fixed = Number(p.config?.fee_fixed ?? 0);
+  if (!pct && !fixed) return null;
+  const parts: string[] = [];
+  if (pct)   parts.push(`${pct}%`);
+  if (fixed) parts.push(`${fixed.toLocaleString("ar")} ﷼`);
+  return `رسوم المزود ${parts.join(" + ")} يتحملها العميل عند التحويل`;
 }
 
 // Checkout payment sections — grouped by provider type
@@ -60,7 +75,7 @@ const PAYMENT_SECTIONS: Array<{ key: string; title: string; emoji: string; types
   { key:"cards",   title:"البطاقات الدولية",      emoji:"💳", types:["stripe"] },
 ];
 
-interface TransferPoint { id: string; label: string; phone: string; accountName?: string; notes?: string; iconUrl?: string; }
+interface TransferPoint { id: string; label: string; phone: string; accountName?: string; notes?: string; iconUrl?: string; qrValue?: string; }
 interface CurrencyAccount { currency: string; label: string; number: string; }
 
 const iCls = "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
@@ -100,6 +115,7 @@ function PaymentInstructions({
   const points = (extra?.points ?? []) as TransferPoint[];
   const networkName = extra?.networkName as string | undefined;
   const accounts = (extra?.accounts ?? []) as CurrencyAccount[];
+  const walletPhone = extra?.walletPhone as string | undefined;
 
   return (
     <div className="space-y-4">
@@ -115,6 +131,22 @@ function PaymentInstructions({
             </li>
           ))}
         </ol>
+      )}
+
+      {/* رقم المحفظة مع QR */}
+      {walletPhone && (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-page)] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-[var(--text-muted)] mb-1">رقم المحفظة</p>
+              <p className="font-bold text-lg text-brand-700 dark:text-accent-400" dir="ltr">{walletPhone}</p>
+            </div>
+            <CopyButton text={walletPhone}/>
+          </div>
+          <div className="mt-3 flex items-center justify-center rounded-lg bg-white p-3">
+            <QRCode value={walletPhone} size={96}/>
+          </div>
+        </div>
       )}
 
       {/* حسابات متعددة العملات */}
@@ -202,9 +234,9 @@ function PaymentInstructions({
                   <CopyButton text={pt.phone} />
                 </div>
               </div>
-              {/* باركود رقم النقطة */}
+              {/* باركود رقم النقطة (أو قيمة QR المخصصة من الإدارة) */}
               <div className="mt-3 flex items-center justify-center rounded-lg bg-white p-3">
-                <QRCode value={pt.phone} size={96} />
+                <QRCode value={pt.qrValue || pt.phone} size={96} />
               </div>
             </div>
           ))}
@@ -260,18 +292,27 @@ export default function CheckoutPage() {
     if (!authLoading && !user) router.replace("/login?redirectTo=/checkout");
   }, [user, authLoading, router]);
 
-  // Load active providers
+  // Load active providers — الاختيار الافتراضي يتجاوز الوسائل خارج حدود المبلغ
   useEffect(() => {
     fetch("/api/payments/providers")
       .then(r => r.json())
       .then(d => {
         const list: Provider[] = (d.providers ?? []);
         setProviders(list);
-        if (list.length > 0 && !list.find(p => p.code === providerCode)) {
-          setProviderCode(list[0].code);
+        const inRange = (p: Provider) => {
+          const t = totalPrice();
+          if (p.min_amount != null && t < Number(p.min_amount)) return false;
+          if (p.max_amount != null && Number(p.max_amount) > 0 && t > Number(p.max_amount)) return false;
+          return true;
+        };
+        const current = list.find(p => p.code === providerCode);
+        if (!current || !inRange(current)) {
+          const firstOk = list.find(inRange) ?? list[0];
+          if (firstOk) setProviderCode(firstOk.code);
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadAddresses = useCallback(async () => {
@@ -720,15 +761,23 @@ export default function CheckoutPage() {
                               {list.map(p => {
                                 const meta = p.metadata ?? {} as Provider["metadata"];
                                 const isManual = meta.confirmation === "manual";
+                                // فرض حدود المبلغ المضبوطة من لوحة الإدارة
+                                const belowMin = p.min_amount != null && total < Number(p.min_amount);
+                                const aboveMax = p.max_amount != null && Number(p.max_amount) > 0 && total > Number(p.max_amount);
+                                const outOfRange = belowMin || aboveMax;
+                                const feeLabel = providerFeeLabel(p);
                                 return (
                                   <label key={p.code}
-                                    className={`flex items-center gap-3.5 rounded-xl border p-3.5 cursor-pointer transition-all ${
-                                      providerCode === p.code
-                                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/30"
-                                        : "border-[var(--border)] hover:border-brand-300"
+                                    className={`flex items-center gap-3.5 rounded-xl border p-3.5 transition-all ${
+                                      outOfRange
+                                        ? "border-[var(--border)] opacity-50 cursor-not-allowed"
+                                        : providerCode === p.code
+                                        ? "border-brand-500 bg-brand-50 dark:bg-brand-900/30 cursor-pointer"
+                                        : "border-[var(--border)] hover:border-brand-300 cursor-pointer"
                                     }`}>
                                     <input type="radio" name="provider" value={p.code}
                                       checked={providerCode === p.code}
+                                      disabled={outOfRange}
                                       onChange={() => setProviderCode(p.code)}
                                       className="h-4 w-4 text-brand-700 shrink-0"/>
                                     {meta.logo_url ? (
@@ -751,8 +800,18 @@ export default function CheckoutPage() {
                                             ادفع عند الاستلام
                                           </span>
                                         )}
+                                        {outOfRange && (
+                                          <span className="text-[10px] rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 px-1.5 py-0.5">
+                                            {belowMin
+                                              ? `الحد الأدنى ${Number(p.min_amount).toLocaleString("ar")} ﷼`
+                                              : `الحد الأعلى ${Number(p.max_amount).toLocaleString("ar")} ﷼`}
+                                          </span>
+                                        )}
                                       </div>
                                       <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{meta.description}</p>
+                                      {feeLabel && !outOfRange && (
+                                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">💱 {feeLabel}</p>
+                                      )}
                                     </div>
                                   </label>
                                 );

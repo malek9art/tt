@@ -54,12 +54,18 @@ export async function PATCH(
     name_ar?: string;
     description?: string;
     logo_url?: string;
+    min_amount?: number | null;
+    max_amount?: number | null;
+    display_order?: number;
   };
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.config       !== undefined) patch.config       = body.config;
   if (body.is_active    !== undefined) patch.is_active    = body.is_active;
   if (body.is_test_mode !== undefined) patch.is_test_mode = body.is_test_mode;
+  if (body.min_amount    !== undefined) patch.min_amount    = body.min_amount;
+  if (body.max_amount    !== undefined) patch.max_amount    = body.max_amount;
+  if (body.display_order !== undefined) patch.display_order = body.display_order;
 
   // Metadata fields require read-merge-write to keep other keys intact
   if (body.name_ar !== undefined || body.description !== undefined || body.logo_url !== undefined) {

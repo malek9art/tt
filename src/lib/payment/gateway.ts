@@ -35,6 +35,17 @@ function generateReferenceCode(): string {
 
 // ── Provider Registry ────────────────────────────────
 
+// التعليمات المخصصة: JSON array أو نص عادي بسطر لكل خطوة — لا نرمي استثناء أبداً
+function parseInstructions(raw?: string): string[] | undefined {
+  if (!raw?.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(String) : undefined;
+  } catch {
+    return raw.split("\n").map(s => s.trim()).filter(Boolean);
+  }
+}
+
 // Build multi-currency accounts array from provider config keys
 function currencyAccounts(cfg: Record<string, string>) {
   const defs = [
@@ -71,15 +82,16 @@ async function buildProvider(code: string): Promise<IPaymentProvider | null> {
     return new ManualWalletProvider(code, meta.name_ar ?? p.name, {
       accountNumber: cfg.account_number,
       accountName:   cfg.account_name,
+      walletPhone:   cfg.wallet_phone,
       accounts:      currencyAccounts(cfg),
-      instructions:  cfg.instructions ? JSON.parse(cfg.instructions) : undefined,
+      instructions:  parseInstructions(cfg.instructions),
     });
   }
 
   if (type === "transfer_point") {
     const { data: pts } = await sb
       .from("transfer_points")
-      .select("id, label, phone, account_name, notes, icon_url")
+      .select("id, label, phone, account_name, notes, icon_url, qr_value")
       .eq("provider_code", code)
       .eq("is_active", true)
       .order("display_order");
@@ -91,6 +103,7 @@ async function buildProvider(code: string): Promise<IPaymentProvider | null> {
       accountName: r.account_name ?? undefined,
       notes:       r.notes        ?? undefined,
       iconUrl:     r.icon_url     ?? undefined,
+      qrValue:     r.qr_value     ?? undefined,
     }));
 
     return new TransferPointsProvider(code, meta.name_ar ?? p.name, points);
@@ -102,7 +115,7 @@ async function buildProvider(code: string): Promise<IPaymentProvider | null> {
       accountName:   cfg.account_name,
       bankName:      cfg.bank_name,
       accounts:      currencyAccounts(cfg),
-      instructions: [
+      instructions: parseInstructions(cfg.instructions) ?? [
         `حوّل المبلغ إلى حساب البنك: ${cfg.bank_name ?? ""}`,
         "اختر رقم الحساب المناسب لعملة التحويل",
         "بعد التحويل أرفق صورة الإيصال أو نص الإشعار في نفس الصفحة",

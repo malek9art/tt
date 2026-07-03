@@ -22,11 +22,13 @@ interface Point {
   is_active: boolean;
   display_order: number;
   icon_url: string | null;
+  qr_value: string | null;
 }
 
 const emptyForm = {
   provider_code: "kuraimi", label: "", phone: "",
   account_name: "", notes: "", is_active: true, display_order: 0,
+  qr_value: "",
 };
 
 interface NetworkOption { code: string; label: string; }
@@ -82,6 +84,7 @@ export default function TransferPointsPage() {
       notes:         pt.notes ?? "",
       is_active:     pt.is_active,
       display_order: pt.display_order,
+      qr_value:      pt.qr_value ?? "",
     });
     setIconFile(null);
     setError("");
@@ -262,6 +265,15 @@ export default function TransferPointsPage() {
               <input type="tel" dir="ltr" placeholder="7XXXXXXXX" value={form.phone}
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm"/>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-[var(--text-2)] mb-1.5 block">
+                قيمة رمز QR (اختياري — الافتراضي رقم الهاتف)
+              </label>
+              <input type="text" dir="ltr" placeholder="رقم حساب أو رابط دفع خاص بالنقطة" value={form.qr_value}
+                onChange={e => setForm(f => ({ ...f, qr_value: e.target.value }))}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm font-mono"/>
             </div>
 
             <div>

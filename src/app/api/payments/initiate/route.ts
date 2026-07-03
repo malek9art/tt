@@ -46,6 +46,23 @@ export async function POST(request: NextRequest) {
 
     if (!order) return NextResponse.json({ error: "الطلب غير موجود" }, { status: 404 });
 
+    // فرض حدود الوسيلة المضبوطة من لوحة الإدارة — خط دفاع خادمي
+    const { data: providerRow } = await supabase
+      .from("payment_providers")
+      .select("min_amount, max_amount")
+      .eq("code", body.providerCode)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (providerRow) {
+      const total = Number(order.total_amount);
+      if (providerRow.min_amount != null && total < Number(providerRow.min_amount)) {
+        return NextResponse.json({ error: `هذه الوسيلة تتطلب حداً أدنى ${Number(providerRow.min_amount).toLocaleString("ar")} ﷼` }, { status: 400 });
+      }
+      if (providerRow.max_amount != null && Number(providerRow.max_amount) > 0 && total > Number(providerRow.max_amount)) {
+        return NextResponse.json({ error: `هذه الوسيلة لا تقبل أكثر من ${Number(providerRow.max_amount).toLocaleString("ar")} ﷼` }, { status: 400 });
+      }
+    }
+
     const result = await PaymentGateway.initiate({
       orderId:       order.id,
       orderNumber:   body.orderNumber,
