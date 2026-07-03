@@ -23,6 +23,8 @@ interface OrderPayload {
     district:    string;
     street:      string;
     landmark:    string;
+    lat?:        number | null;
+    lng?:        number | null;
   };
   payment_method:  string;
   notes:           string;

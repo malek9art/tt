@@ -16,6 +16,7 @@ import {
   HiCheck, HiExclamationCircle, HiClock, HiShieldCheck,
 } from "react-icons/hi2";
 import type { PaymentInstruction } from "@/lib/payment/types";
+import LocationPicker, { type GeoPoint } from "@/components/map/LocationPicker";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,6 +36,7 @@ interface SavedAddress {
   id: string; label: string|null; full_name: string; phone: string;
   governorate: string; district: string|null; street: string|null;
   landmark: string|null; is_default: boolean;
+  geo_lat: number|null; geo_lng: number|null;
 }
 
 interface Coupon {
@@ -320,7 +322,13 @@ export default function CheckoutPage() {
     full_name:"", phone:"", governorate:"تعز",
     district:"", street:"", landmark:"", notes:"",
   });
-  const setF = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const [geo,         setGeo]         = useState<GeoPoint|null>(null);
+  const [saveAddress, setSaveAddress] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<{ full_name?: string; phone?: string }>({});
+  const setF = (k: string, v: string) => {
+    setForm(f => ({ ...f, [k]: v }));
+    setFieldErrors(fe => ({ ...fe, [k]: undefined }));
+  };
 
   useEffect(() => {
     // ننتظر تحميل الجلسة أولاً — وإلا يُقذف المستخدم المسجّل إلى صفحة الدخول
@@ -345,7 +353,7 @@ export default function CheckoutPage() {
     if (!user) return;
     const { data } = await sb
       .from("addresses")
-      .select("id,label,full_name,phone,governorate,district,street,landmark,is_default")
+      .select("id,label,full_name,phone,governorate,district,street,landmark,is_default,geo_lat,geo_lng")
       .eq("user_id", user.id)
       .order("is_default", { ascending: false });
     const addrs = (data as SavedAddress[]) ?? [];
@@ -357,11 +365,15 @@ export default function CheckoutPage() {
   useEffect(() => { loadAddresses(); }, [loadAddresses]);
 
   const applyAddress = (addr: SavedAddress) => {
-    setForm({ full_name: addr.full_name, phone: addr.phone, governorate: addr.governorate,
+    setForm({ full_name: addr.full_name ?? "", phone: addr.phone ?? "", governorate: addr.governorate,
       district: addr.district ?? "", street: addr.street ?? "",
       landmark: addr.landmark ?? "", notes: "" });
+    setGeo(addr.geo_lat != null && addr.geo_lng != null
+      ? { lat: Number(addr.geo_lat), lng: Number(addr.geo_lng) }
+      : null);
     setSelectedAddr(addr.id);
     setShowAddrList(false);
+    setFieldErrors({});
   };
 
   const applyCoupon = async () => {
@@ -395,17 +407,37 @@ export default function CheckoutPage() {
     : 0;
   const total = subtotal + shipping - discount;
 
-  // Step 1 → 2
+  // Step 1 → 2 — تحقق فوري مع رسالة تحت كل حقل
   const goToPayment = () => {
-    if (!form.full_name.trim()) { setError("أدخل الاسم الكامل"); return; }
-    if (!form.phone.trim())     { setError("أدخل رقم الهاتف");    return; }
+    const errs: { full_name?: string; phone?: string } = {};
+    const name  = form.full_name.trim();
+    const phone = form.phone.replace(/[\s-]/g, "");
+    if (name.length < 3) errs.full_name = "أدخل الاسم الكامل (3 أحرف على الأقل)";
+    if (!phone)          errs.phone = "أدخل رقم الهاتف";
+    else if (!/^(\+?967)?0?7\d{8}$/.test(phone)) errs.phone = "أدخل رقم جوال يمني صحيح — مثال: 7XXXXXXXX";
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setError(""); setStep("payment");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Step 2 → Create order → initiate payment
   const handleSubmit = async () => {
     if (!items.length) { setError("السلة فارغة"); return; }
     setLoading(true); setError("");
+
+    // حفظ العنوان الجديد تلقائياً لتسريع الطلبات القادمة
+    if (saveAddress && user && !selectedAddr) {
+      await sb.from("addresses").insert({
+        user_id: user.id,
+        full_name: form.full_name.trim(), phone: form.phone.trim(),
+        governorate: form.governorate,
+        district: form.district || null, street: form.street || null,
+        landmark: form.landmark || null,
+        geo_lat: geo?.lat ?? null, geo_lng: geo?.lng ?? null,
+        is_default: savedAddresses.length === 0,
+      }).then(({ error: e }) => { if (e) console.error("saveAddress:", e); });
+    }
 
     // 1) Create order
     const orderRes = await fetch("/api/orders", {
@@ -419,7 +451,7 @@ export default function CheckoutPage() {
           attrs_snapshot: i.attributes, price: i.price,
           quantity: i.quantity, subtotal: i.price * i.quantity,
         })),
-        address: { ...form },
+        address: { ...form, lat: geo?.lat ?? null, lng: geo?.lng ?? null },
         payment_method: providerCode,
         notes: form.notes,
         coupon_code: coupon?.code ?? "",
@@ -516,9 +548,12 @@ export default function CheckoutPage() {
               </div>
               <h1 className="text-2xl font-bold text-[var(--text-1)]">تم استلام طلبك! 🎉</h1>
               <p className="text-[var(--text-muted)] mt-1">رقم الطلب</p>
-              <p className="text-3xl font-bold text-brand-700 dark:text-accent-400 mt-1" dir="ltr">
-                #{orderNum}
-              </p>
+              <div className="mt-1 flex items-center justify-center gap-2">
+                <p className="text-3xl font-bold text-brand-700 dark:text-accent-400" dir="ltr">
+                  #{orderNum}
+                </p>
+                <CopyButton text={orderNum}/>
+              </div>
             </div>
 
             {/* Payment instructions */}
@@ -631,16 +666,22 @@ export default function CheckoutPage() {
                         <div className="relative">
                           <HiUser className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]"/>
                           <input type="text" placeholder="محمد أحمد" value={form.full_name}
-                            onChange={e => setF("full_name", e.target.value)} className={`${iCls} pe-9`}/>
+                            autoComplete="name"
+                            onChange={e => setF("full_name", e.target.value)}
+                            className={`${iCls} pe-9 ${fieldErrors.full_name ? "!border-red-400" : ""}`}/>
                         </div>
+                        {fieldErrors.full_name && <p className="mt-1 text-xs text-red-500">{fieldErrors.full_name}</p>}
                       </div>
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">رقم الهاتف *</label>
                         <div className="relative">
                           <HiPhone className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]"/>
-                          <input type="tel" dir="ltr" placeholder="7XXXXXXXX" value={form.phone}
-                            onChange={e => setF("phone", e.target.value)} className={`${iCls} pe-9`}/>
+                          <input type="tel" dir="ltr" inputMode="tel" placeholder="7XXXXXXXX" value={form.phone}
+                            autoComplete="tel"
+                            onChange={e => setF("phone", e.target.value)}
+                            className={`${iCls} pe-9 ${fieldErrors.phone ? "!border-red-400" : ""}`}/>
                         </div>
+                        {fieldErrors.phone && <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>}
                       </div>
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">المحافظة *</label>
@@ -672,6 +713,28 @@ export default function CheckoutPage() {
                         <textarea rows={2} value={form.notes}
                           onChange={e => setF("notes", e.target.value)} className={`${iCls} resize-none`}/>
                       </div>
+
+                      {/* تحديد الموقع على الخريطة */}
+                      <div className="sm:col-span-2">
+                        <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">
+                          📍 موقع التوصيل على الخريطة (اختياري — يساعد المندوب في الوصول إليك بسرعة)
+                        </label>
+                        <LocationPicker value={geo} onChange={setGeo}/>
+                      </div>
+
+                      {/* حفظ العنوان للطلبات القادمة */}
+                      {user && !selectedAddr && (
+                        <div className="sm:col-span-2">
+                          <label className="flex items-center gap-2.5 cursor-pointer rounded-xl border border-[var(--border)] px-4 py-3 hover:border-brand-300 transition-colors">
+                            <input type="checkbox" checked={saveAddress}
+                              onChange={e => setSaveAddress(e.target.checked)}
+                              className="h-4 w-4 rounded text-brand-700"/>
+                            <span className="text-sm text-[var(--text-1)]">
+                              احفظ هذا العنوان لتسريع طلباتي القادمة
+                            </span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                     {error && (
                       <p className="flex items-center gap-1.5 text-sm text-red-500">
@@ -688,6 +751,26 @@ export default function CheckoutPage() {
               {/* ===== Step 2: Payment Method ===== */}
               {step === "payment" && (
                 <div className="card-base p-5 space-y-5">
+                  {/* ملخص عنوان التوصيل مع إمكانية التعديل */}
+                  <div className="flex items-start justify-between gap-3 rounded-xl bg-[var(--bg-page)] border border-[var(--border)] p-3.5">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <HiMapPin className="text-brand-700 dark:text-accent-400 mt-0.5 shrink-0"/>
+                      <div className="min-w-0 text-sm">
+                        <p className="font-semibold text-[var(--text-1)] truncate">
+                          {form.full_name} — <span dir="ltr">{form.phone}</span>
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
+                          {form.governorate}{form.district && ` · ${form.district}`}{form.street && ` · ${form.street}`}
+                          {geo && " · 📍 موقع محدد على الخريطة"}
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => setStep("info")}
+                      className="shrink-0 text-xs font-medium text-brand-700 dark:text-accent-400 hover:underline">
+                      تعديل
+                    </button>
+                  </div>
+
                   <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3">
                     اختر طريقة الدفع
                   </h2>
@@ -841,8 +924,15 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex justify-between text-sm text-[var(--text-2)]">
                     <span>الشحن</span>
-                    <span className={shipping === 0 ? "text-green-600" : ""}>{shipping === 0 ? "مجاني" : `${shipping.toLocaleString("ar")} ﷼`}</span>
+                    <span className={shipping === 0 ? "text-green-600" : ""}>{shipping === 0 ? "مجاني 🎉" : `${shipping.toLocaleString("ar")} ﷼`}</span>
                   </div>
+                  {shipping > 0 && (
+                    <div className="rounded-lg bg-accent-500/10 border border-accent-500/30 px-3 py-2 text-xs text-[var(--text-2)]">
+                      🚚 أضف منتجات بقيمة{" "}
+                      <b className="text-brand-700 dark:text-accent-400">{(50000 - subtotal).toLocaleString("ar")} ﷼</b>{" "}
+                      لتحصل على شحن مجاني
+                    </div>
+                  )}
                   {discount > 0 && (
                     <div className="flex justify-between text-sm text-green-600">
                       <span>خصم الكوبون</span><span>- {discount.toLocaleString("ar")} ﷼</span>

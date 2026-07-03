@@ -5,6 +5,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Link from "next/link";
 import { Plus, Trash2, MapPin, ChevronLeft, Loader2, Star } from "lucide-react";
+import LocationPicker, { type GeoPoint } from "@/components/map/LocationPicker";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +28,8 @@ interface Address {
   street: string | null;
   landmark: string | null;
   is_default: boolean;
+  geo_lat: number | null;
+  geo_lng: number | null;
 }
 
 const EMPTY_FORM = {
@@ -41,6 +44,7 @@ export default function AddressesPage() {
   const [saving,    setSaving]    = useState(false);
   const [userId,    setUserId]    = useState<string|null>(null);
   const [form,      setForm]      = useState(EMPTY_FORM);
+  const [geo,       setGeo]       = useState<GeoPoint|null>(null);
   const [error,     setError]     = useState("");
 
   const load = useCallback(async (uid: string) => {
@@ -74,9 +78,11 @@ export default function AddressesPage() {
       district: form.district || null,
       street:   form.street  || null,
       landmark: form.landmark || null,
+      geo_lat:  geo?.lat ?? null,
+      geo_lng:  geo?.lng ?? null,
     });
     if (dbErr) setError(dbErr.message);
-    else { setForm(EMPTY_FORM); setShowForm(false); load(userId); }
+    else { setForm(EMPTY_FORM); setGeo(null); setShowForm(false); load(userId); }
     setSaving(false);
   };
 
@@ -155,6 +161,12 @@ export default function AddressesPage() {
                 <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">علامة مميزة (اختياري)</label>
                 <input type="text" placeholder="بجانب مسجد / أمام المدرسة..." value={form.landmark}
                   onChange={e=>setForm(f=>({...f,landmark:e.target.value}))} className={iCls}/>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">
+                  📍 الموقع على الخريطة (اختياري)
+                </label>
+                <LocationPicker value={geo} onChange={setGeo}/>
               </div>
               <div className="sm:col-span-2">
                 <label className="flex items-center gap-2 cursor-pointer">

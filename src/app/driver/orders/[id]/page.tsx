@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import Link from "next/link";
+import LocationView from "@/components/map/LocationView";
 import {
   ArrowRight, MapPin, Phone, Package, CheckCircle,
   Camera, Loader2, MessageSquare
@@ -27,7 +28,7 @@ const STATUS_AR: Record<string,string> = {
 
 interface OrderData {
   id: string; order_number: string; total_amount: number; currency: string;
-  address_snapshot: { full_name:string; phone:string; governorate:string; district:string|null; street:string|null; landmark:string|null; };
+  address_snapshot: { full_name:string; phone:string; governorate:string; district:string|null; street:string|null; landmark:string|null; lat?:number|null; lng?:number|null; };
   order_items: { name_snapshot:string; quantity:number }[];
 }
 
@@ -198,10 +199,16 @@ export default function DriverOrderDetail() {
                 <Phone size={16}/> <span dir="ltr">{addr.phone}</span>
               </a>
               <a href={`https://wa.me/${addr.phone.replace(/[^0-9]/g,"")}`} target="_blank" rel="noreferrer"
+                aria-label="مراسلة العميل عبر واتساب"
                 className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500 text-white hover:bg-green-600 transition-colors">
                 <MessageSquare size={18}/>
               </a>
             </div>
+
+            {/* موقع العميل — خريطة وملاحة مباشرة */}
+            {addr.lat && addr.lng ? (
+              <LocationView lat={Number(addr.lat)} lng={Number(addr.lng)} label="ابدأ الملاحة إلى العميل"/>
+            ) : null}
           </div>
         )}
 

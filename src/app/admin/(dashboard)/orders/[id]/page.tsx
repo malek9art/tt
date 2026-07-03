@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams }           from "next/navigation";
 import Link                    from "next/link";
 import { ArrowRight, Loader2, CheckCircle } from "lucide-react";
+import LocationView from "@/components/map/LocationView";
 
 const ORDER_STATUSES = [
   "pending","confirmed","processing",
@@ -55,7 +56,9 @@ export default function AdminOrderDetailPage() {
 
   const items   = order.order_items as {name_snapshot:string;quantity:number;price:number;subtotal:number}[] ?? [];
   const profile = order.profiles   as {full_name:string;phone:string}|null;
-  const addr    = order.address_snapshot as Record<string,string> ?? {};
+  const addr    = order.address_snapshot as Record<string,string|number|null> ?? {};
+  const geoLat  = typeof addr.lat === "number" ? addr.lat : Number(addr.lat) || null;
+  const geoLng  = typeof addr.lng === "number" ? addr.lng : Number(addr.lng) || null;
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -123,11 +126,20 @@ export default function AdminOrderDetailPage() {
         </div>
         <div className="card-base p-5">
           <h2 className="font-semibold text-[var(--text-1)] mb-3">عنوان التوصيل</h2>
-          <p className="text-sm text-[var(--text-2)]">{addr.full_name} · {addr.phone}</p>
-          <p className="text-sm text-[var(--text-2)]">{addr.governorate}{addr.district&&` · ${addr.district}`}</p>
-          {addr.street&&<p className="text-sm text-[var(--text-2)]">{addr.street}</p>}
+          <p className="text-sm text-[var(--text-2)]">{String(addr.full_name ?? "")} · <span dir="ltr">{String(addr.phone ?? "")}</span></p>
+          <p className="text-sm text-[var(--text-2)]">{String(addr.governorate ?? "")}{addr.district ? ` · ${addr.district}` : ""}</p>
+          {addr.street ? <p className="text-sm text-[var(--text-2)]">{String(addr.street)}</p> : null}
+          {addr.landmark ? <p className="text-xs text-[var(--text-muted)] mt-1">🏷 {String(addr.landmark)}</p> : null}
         </div>
       </div>
+
+      {/* موقع العميل على الخريطة */}
+      {geoLat && geoLng && (
+        <div className="card-base p-5">
+          <h2 className="font-semibold text-[var(--text-1)] mb-3">📍 موقع التوصيل على الخريطة</h2>
+          <LocationView lat={geoLat} lng={geoLng} label="افتح الموقع في خرائط جوجل"/>
+        </div>
+      )}
     </div>
   );
 }
