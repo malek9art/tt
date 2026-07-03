@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams }           from "next/navigation";
 import Link                    from "next/link";
-import { ArrowRight, Loader2, CheckCircle } from "lucide-react";
+import { ArrowRight, Loader2, CheckCircle, Printer, Tag } from "lucide-react";
 import LocationView from "@/components/map/LocationView";
 
 const ORDER_STATUSES = [
@@ -62,13 +62,24 @@ export default function AdminOrderDetailPage() {
 
   return (
     <div className="space-y-5 max-w-2xl">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Link href="/admin/orders" className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
           <ArrowRight size={16}/>
         </Link>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-[var(--text-1)]" dir="ltr">{order.order_number as string}</h1>
           <p className="text-xs text-[var(--text-muted)]">تفاصيل الطلب</p>
+        </div>
+        {/* أزرار الطباعة — تفتح في تبويب جديد جاهزة للطباعة */}
+        <div className="flex gap-2">
+          <a href={`/admin/print/orders/${id}/invoice`} target="_blank" rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-1)] hover:border-brand-400 transition-colors">
+            <Printer size={14}/> فاتورة
+          </a>
+          <a href={`/admin/print/orders/${id}/label`} target="_blank" rel="noreferrer"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-1)] hover:border-brand-400 transition-colors">
+            <Tag size={14}/> بوليصة شحن
+          </a>
         </div>
       </div>
 

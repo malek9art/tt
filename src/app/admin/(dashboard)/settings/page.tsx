@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings, CreditCard, Shield, Bell, Store, Palette, ArrowLeft } from "lucide-react";
+import { Settings, CreditCard, Shield, Bell, Store, Palette, ArrowLeft, KeyRound } from "lucide-react";
 
 export const metadata = { title: "الإعدادات" };
 
@@ -23,6 +23,13 @@ const sections = [
     title: "الأدوار والصلاحيات",
     desc:  "عرض أدوار النظام وصلاحيات كل دور",
     href:  "/admin/settings/roles",
+    ready: true,
+  },
+  {
+    icon:  KeyRound,
+    title: "الأمان",
+    desc:  "تغيير كلمة مرور حسابك",
+    href:  "/admin/settings/security",
     ready: true,
   },
   {
