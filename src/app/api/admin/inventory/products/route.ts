@@ -40,19 +40,27 @@ export async function POST(request: NextRequest) {
 
   const sku = body.sku?.trim() || generateSku(name);
 
-  // منع تكرار SKU
-  const { data: dupe } = await supabase
-    .from("product_variants").select("id").eq("sku", sku).maybeSingle();
-  if (dupe) {
+  // منع تكرار SKU (على مستوى المنتجات والمتغيّرات معاً — كلاهما UNIQUE)
+  const [{ data: dupeVariant }, { data: dupeProduct }] = await Promise.all([
+    supabase.from("product_variants").select("id").eq("sku", sku).maybeSingle(),
+    supabase.from("products").select("id").eq("sku", sku).maybeSingle(),
+  ]);
+  if (dupeVariant || dupeProduct) {
     return NextResponse.json({ error: `SKU مكرر: ${sku} — استخدم رمزاً آخر` }, { status: 409 });
   }
+
+  // slug فريد — تكرار اسم المنتج يضيف لاحقة عشوائية بدل الفشل
+  let slug = buildSlug({ name_ar: name, sku });
+  const { data: dupeSlug } = await supabase
+    .from("products").select("id").eq("slug", slug).maybeSingle();
+  if (dupeSlug) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
 
   // 1) المنتج
   const { data: product, error: pErr } = await supabase
     .from("products")
     .insert({
       name_ar:    name,
-      slug:       buildSlug({ name_ar: name, sku }),
+      slug,
       sku,
       base_price: price,
       currency:   "YER",
