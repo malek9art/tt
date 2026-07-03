@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { notifyOrderPaid, notifyOrderCancelled } from "@/lib/notifications";
+import { applyOrderStock } from "@/lib/admin/stock";
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { error, supabase } = await requireAdmin("orders:read");
@@ -22,6 +23,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { id } = await params;
   const body = await request.json() as { status?: string; payment_status?: string };
 
+  // الحالة السابقة — لنعرف إن كان هذا إلغاءً جديداً فلا نُرجع المخزون مرتين
+  const { data: prev } = await supabase
+    .from("orders")
+    .select("status, order_items(variant_id, name_snapshot, quantity)")
+    .eq("id", id)
+    .single();
+
   const updateData: Record<string, string> = {};
   if (body.status)         updateData.status = body.status;
   if (body.payment_status) updateData.payment_status = body.payment_status;
@@ -41,6 +49,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (body.status === "cancelled" && data?.order_number) {
     notifyOrderCancelled(data.order_number, id).catch(() => {});
+    // إرجاع الكميات للمخزون مع قيد حركة — مرة واحدة فقط عند أول إلغاء
+    if (prev && prev.status !== "cancelled") {
+      const items = ((prev.order_items ?? []) as { variant_id: string | null; name_snapshot: string; quantity: number }[])
+        .map(i => ({ variant_id: i.variant_id, name_snapshot: i.name_snapshot, quantity: i.quantity }));
+      applyOrderStock(id, data.order_number, items, "return").catch(() => {});
+    }
   }
 
   return NextResponse.json(data);

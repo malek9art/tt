@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { notifyNewOrder } from "@/lib/notifications";
+import { checkStockAvailability, applyOrderStock } from "@/lib/admin/stock";
 
 interface OrderItem {
   product_id:     string;
@@ -130,6 +131,16 @@ export async function POST(request: NextRequest) {
       items.push({ ...item, price, quantity, subtotal: price * quantity });
     }
 
+    // إيقاف البيع التلقائي عند نفاد المخزون
+    const shortages = await checkStockAvailability(items.map(i => ({
+      variant_id: i.variant_id, name_snapshot: i.name_snapshot, quantity: i.quantity,
+    })));
+    if (shortages.length > 0) {
+      return NextResponse.json({
+        error: `الكمية المطلوبة غير متوفرة حالياً: ${shortages.join("، ")} — حدّث السلة`,
+      }, { status: 409 });
+    }
+
     const subtotal = items.reduce((s, i) => s + i.subtotal, 0);
     const currency = "YER";
 
@@ -234,6 +245,12 @@ export async function POST(request: NextRequest) {
       order_id: order.id,
       status:   "pending",
     });
+
+    // خصم المخزون + قيد حركة بيع لكل عنصر (fire-and-forget — لا يكسر الطلب)
+    applyOrderStock(order.id, order.order_number,
+      items.map(i => ({ variant_id: i.variant_id, name_snapshot: i.name_snapshot, quantity: i.quantity })),
+      "sale",
+    ).catch(() => {});
 
     // إشعار الأدمن بالطلب الجديد (fire-and-forget)
     notifyNewOrder(order.order_number, order.id, total).catch(() => {});

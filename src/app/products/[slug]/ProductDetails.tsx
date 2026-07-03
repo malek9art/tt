@@ -11,7 +11,7 @@ import {
 } from "react-icons/hi2";
 import { FaWhatsapp } from "react-icons/fa6";
 import type { Product, ProductVariant } from "@/lib/supabase";
-import { formatPrice, discountPercent } from "@/lib/api";
+import { formatPrice, discountPercent, getStockStatus, getVariantStock } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { useWishlistStore } from "@/store/wishlistStore";
@@ -43,7 +43,20 @@ export default function ProductDetails({ product, related }: Props) {
   const price    = selected?.price ?? product.base_price;
   const oldPrice = selected?.compare_at_price ?? null;
   const discount = oldPrice ? discountPercent(oldPrice, price) : 0;
-  const inStock  = variants.length > 0 || product.type === "service";
+
+  // التوفر الحقيقي من المخزون: الخدمات دائماً متاحة، والمتغيّر المختار يحكم
+  const stockStatus   = getStockStatus(product);
+  const selectedStock = selected ? getVariantStock(selected) : null;
+  const inStock = product.type === "service"
+    ? true
+    : selected
+    ? (selectedStock === null || selectedStock > 0)
+    : stockStatus !== "out";
+  const lowStock = inStock && (
+    (selected && selectedStock !== null && selectedStock <= 5) ||
+    (!selected && stockStatus === "low")
+  );
+
   const imgUrl   = images[activeImg]?.url ?? FALLBACK;
 
   // تجميع سمات المتغيرات حسب المفتاح
@@ -301,10 +314,14 @@ export default function ProductDetails({ product, related }: Props) {
             </div>
 
             {/* حالة التوفر */}
-            <div className={`mb-5 flex items-center gap-2 text-sm font-medium ${inStock ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
-              {inStock
-                ? <><HiCheck className="text-base"/> متوفر في المخزون — يصلك خلال 1-3 أيام</>
-                : <><HiXMark className="text-base"/> غير متوفر حالياً</>}
+            <div className={`mb-5 flex items-center gap-2 text-sm font-medium ${
+              !inStock ? "text-red-500" : lowStock ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"
+            }`}>
+              {!inStock
+                ? <><HiXMark className="text-base"/> نفد المخزون — سيتوفر قريباً</>
+                : lowStock
+                ? <><HiCheck className="text-base"/> كمية محدودة — اطلب قبل النفاد{selectedStock !== null && selectedStock > 0 ? ` (متبقٍ ${selectedStock})` : ""}</>
+                : <><HiCheck className="text-base"/> متوفر في المخزون — يصلك خلال 1-3 أيام</>}
             </div>
 
             {/* ضمانات */}

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { getProductBySlug, getLatestProducts } from "@/lib/api";
+import { getProductBySlug, getRelatedProducts } from "@/lib/api";
 import ProductDetails from "./ProductDetails";
 import type { Product } from "@/lib/supabase";
 
@@ -26,14 +26,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
-  const [product, related] = await Promise.all([
-    getProductBySlug(slug),
-    getLatestProducts(8),
-  ]);
+  const product = await getProductBySlug(slug);
 
   if (!product) notFound();
 
-  const relatedFiltered = (related as Product[]).filter(x => x.id !== product.id).slice(0, 4);
+  // منتجات مشابهة من نفس الفئة أولاً، ثم الأحدث كاحتياط
+  const relatedFiltered = (await getRelatedProducts(
+    product.category_id, product.id, 4,
+  )) as Product[];
 
   return (
     <div className="min-h-screen">

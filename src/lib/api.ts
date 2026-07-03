@@ -15,7 +15,7 @@ export async function getCategories(): Promise<Category[]> {
 export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
   const { data, error } = await supabase
     .from("products")
-    .select(`*, product_images(*), product_variants(*), categories(name_ar,slug), brands(name)`)
+    .select(`*, product_images(*), product_variants(*, inventory(quantity)), categories(name_ar,slug), brands(name)`)
     .eq("status", "published")
     .eq("is_featured", true)
     .order("created_at", { ascending: false })
@@ -38,7 +38,7 @@ export async function getProducts(opts: {
 
   let query = supabase
     .from("products")
-    .select(`*, product_images(*), product_variants(*), ${catRel}, ${brandRel}`, { count: "exact" })
+    .select(`*, product_images(*), product_variants(*, inventory(quantity)), ${catRel}, ${brandRel}`, { count: "exact" })
     .eq("status", "published");
 
   if (category) query = query.eq("categories.slug", category);
@@ -60,7 +60,7 @@ export async function getProducts(opts: {
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const { data, error } = await supabase
     .from("products")
-    .select(`*, product_images(*), product_variants(*), categories(*), brands(*)`)
+    .select(`*, product_images(*), product_variants(*, inventory(quantity)), categories(*), brands(*)`)
     .eq("slug", slug)
     .eq("status", "published")
     .single();
@@ -89,7 +89,7 @@ export async function getBanners(): Promise<Banner[]> {
 export async function getLatestProducts(limit = 8): Promise<Product[]> {
   const { data, error } = await supabase
     .from("products")
-    .select(`*, product_images(*), product_variants(*), categories(name_ar), brands(name)`)
+    .select(`*, product_images(*), product_variants(*, inventory(quantity)), categories(name_ar), brands(name)`)
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -122,6 +122,59 @@ export function getPrimaryImage(product: Product): string {
 export function getLowestPrice(product: Product): number {
   if (!product.product_variants?.length) return product.base_price;
   return Math.min(...product.product_variants.filter(v => v.is_active).map(v => v.price));
+}
+
+// ===== حالة التوفر =====
+export type StockStatus = "in_stock" | "low" | "out";
+
+/** كمية متغيّر واحد — null تعني غير مُتتبَّع في المخزون (يُعامل كمتوفر) */
+export function getVariantStock(v: import("./supabase").ProductVariant): number | null {
+  if (!v.inventory || v.inventory.length === 0) return null;
+  return v.inventory.reduce((s, r) => s + Number(r.quantity ?? 0), 0);
+}
+
+/** حالة توفر المنتج ككل — الخدمات متاحة دائماً */
+export function getStockStatus(product: Product): StockStatus {
+  if (product.type === "service") return "in_stock";
+  const variants = product.product_variants?.filter(v => v.is_active) ?? [];
+  if (variants.length === 0) return "out";
+  let total = 0;
+  let tracked = false;
+  for (const v of variants) {
+    const q = getVariantStock(v);
+    if (q !== null) { tracked = true; total += q; }
+  }
+  if (!tracked) return "in_stock"; // بلا سجلات مخزون = غير مُتتبَّع
+  if (total <= 0) return "out";
+  if (total <= 5) return "low";
+  return "in_stock";
+}
+
+// ===== منتجات مشابهة (نفس الفئة) =====
+export async function getRelatedProducts(
+  categoryId: string | null, excludeId: string, limit = 4,
+): Promise<Product[]> {
+  let query = supabase
+    .from("products")
+    .select(`*, product_images(*), product_variants(*, inventory(quantity)), categories(name_ar,slug), brands(name)`)
+    .eq("status", "published")
+    .neq("id", excludeId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (categoryId) query = query.eq("category_id", categoryId);
+  const { data, error } = await query;
+  if (error) { console.error("getRelatedProducts:", error); return []; }
+  // إن لم تكفِ منتجات الفئة نُكمل بالأحدث
+  if ((data?.length ?? 0) < limit && categoryId) {
+    const more = await getLatestProducts(limit + 1);
+    const merged = [...(data ?? [])];
+    for (const m of more) {
+      if (merged.length >= limit) break;
+      if (m.id !== excludeId && !merged.find(x => x.id === m.id)) merged.push(m);
+    }
+    return merged;
+  }
+  return data ?? [];
 }
 
 export function getHighestComparePrice(product: Product): number | null {

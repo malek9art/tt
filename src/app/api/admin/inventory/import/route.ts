@@ -62,46 +62,30 @@ export async function POST(request: NextRequest) {
       .eq("sku", row.sku)
       .maybeSingle();
 
-    if (!variant) {
-      // Try product SKU
+    let variantId: string | null = variant?.id ?? null;
+    let prodName = "";
+    if (variant) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prod = Array.isArray(variant.products) ? variant.products[0] : variant.products as any;
+      prodName = prod?.name_ar ?? row.sku;
+    } else {
+      // SKU على مستوى المنتج — نصل لمتغيّره الافتراضي
       const { data: product } = await supabase
         .from("products")
-        .select("id, name_ar")
+        .select("id, name_ar, product_variants(id)")
         .eq("sku", row.sku)
         .maybeSingle();
-
       if (!product) { skipped++; errors.push(row.sku); continue; }
-
-      // Find inventory via product's default variant
-      const { data: inv } = await supabase
-        .from("inventory")
-        .select("id, quantity, reorder_level")
-        .eq("product_id", product.id)
-        .maybeSingle();
-
-      if (!inv) { skipped++; errors.push(row.sku); continue; }
-
-      const updateData: Record<string, unknown> = { quantity: row.quantity };
-      if (row.location)         updateData.location = row.location;
-      if (row.reorder_level)    updateData.reorder_level = row.reorder_level;
-      if (row.reorder_quantity) updateData.reorder_quantity = row.reorder_quantity;
-
-      await supabase.from("inventory").update(updateData).eq("id", inv.id);
-      updated++;
-
-      // Notify if stock changed to low/out
-      if (row.quantity === 0) await notifyOutOfStock(product.name_ar);
-      else if (row.quantity <= (row.reorder_level || inv.reorder_level)) {
-        await notifyLowStock(product.name_ar, row.quantity, inv.id);
-      }
-      continue;
+      const pvs = (product.product_variants as { id: string }[]) ?? [];
+      if (pvs.length === 0) { skipped++; errors.push(row.sku); continue; }
+      variantId = pvs[0].id;
+      prodName  = product.name_ar;
     }
 
-    const prod = Array.isArray(variant.products) ? variant.products[0] : variant.products as any;
     const { data: inv } = await supabase
       .from("inventory")
-      .select("id, reorder_level")
-      .eq("variant_id", variant.id)
+      .select("id, quantity, reorder_level")
+      .eq("variant_id", variantId)
       .maybeSingle();
 
     if (!inv) { skipped++; errors.push(row.sku); continue; }
@@ -114,9 +98,23 @@ export async function POST(request: NextRequest) {
     await supabase.from("inventory").update(updateData).eq("id", inv.id);
     updated++;
 
-    if (row.quantity === 0) await notifyOutOfStock(prod?.name_ar ?? row.sku);
+    // قيد حركة تعديل بالاستيراد إن تغيّرت الكمية
+    if (Number(inv.quantity) !== row.quantity) {
+      await supabase.from("inventory_movements").insert({
+        variant_id:      variantId,
+        product_name:    prodName,
+        movement_type:   "adjust",
+        quantity:        Math.abs(row.quantity - Number(inv.quantity)),
+        quantity_before: Number(inv.quantity),
+        quantity_after:  row.quantity,
+        reason:          "استيراد ملف CSV",
+        reference_type:  "import",
+      });
+    }
+
+    if (row.quantity === 0) await notifyOutOfStock(prodName);
     else if (row.quantity <= (row.reorder_level || inv.reorder_level)) {
-      await notifyLowStock(prod?.name_ar ?? row.sku, row.quantity, inv.id);
+      await notifyLowStock(prodName, row.quantity, inv.id);
     }
   }
 

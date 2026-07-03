@@ -113,17 +113,32 @@ export async function createProductWithInventory(
   }
 
   // 3) سجل المخزون في المخزن الرئيسي
+  const initialQty = Math.max(0, Math.floor(input.quantity ?? 0));
   const { data: warehouse } = await supabase
     .from("warehouses").select("id").limit(1).maybeSingle();
   if (warehouse) {
     const { error: iErr } = await supabase.from("inventory").insert({
       variant_id:    variant.id,
       warehouse_id:  warehouse.id,
-      quantity:      Math.max(0, Math.floor(input.quantity ?? 0)),
+      quantity:      initialQty,
       reorder_level: Math.max(0, Math.floor(input.reorder_level ?? 5)),
       location:      input.location || null,
     });
     if (iErr) console.error("create-product inventory:", iErr);
+    else if (initialQty > 0) {
+      // قيد الرصيد الافتتاحي في سجل الحركات
+      await supabase.from("inventory_movements").insert({
+        variant_id:      variant.id,
+        product_name:    name,
+        movement_type:   "initial",
+        quantity:        initialQty,
+        quantity_before: 0,
+        quantity_after:  initialQty,
+        reason:          "رصيد افتتاحي عند إنشاء المنتج",
+        reference_type:  "quick_add",
+        created_by:      userId,
+      }).then(({ error: mErr }) => { if (mErr) console.error("initial movement:", mErr); });
+    }
   }
 
   return { ok: true, product_id: product.id, variant_id: variant.id, sku, slug: product.slug };

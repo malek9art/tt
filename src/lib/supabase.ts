@@ -38,6 +38,8 @@ export type ProductVariant = {
   attributes: Record<string, string>; price: number;
   compare_at_price: number | null; barcode: string | null;
   is_active: boolean; sort_order: number;
+  /** كمية المخزون المضمّنة من جدول inventory (قراءة عامة للكمية فقط) */
+  inventory?: { quantity: number }[];
 };
 
 export type ProductImage = {

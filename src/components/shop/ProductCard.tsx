@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { HiHeart, HiShoppingCart, HiCheck } from "react-icons/hi2";
 import { type Product } from "@/lib/supabase";
-import { formatPrice, discountPercent, getPrimaryImage, getLowestPrice, getHighestComparePrice } from "@/lib/api";
+import { formatPrice, discountPercent, getPrimaryImage, getLowestPrice, getHighestComparePrice, getStockStatus } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/authStore";
 import { useWishlistStore } from "@/store/wishlistStore";
@@ -25,9 +25,12 @@ export default function ProductCard({ product }: Props) {
   const oldPrice = getHighestComparePrice(product);
   const discount = oldPrice ? discountPercent(oldPrice, price) : 0;
   const isNew    = product.condition === "new";
+  const stock    = getStockStatus(product);
+  const isOut    = stock === "out";
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
+    if (isOut) { toast.warning("هذا المنتج غير متوفر حالياً"); return; }
     addItem(product, undefined, 1);
     setAdded(true);
     toast.success(`تمت إضافة ${product.name_ar} إلى السلة`);
@@ -65,7 +68,21 @@ export default function ProductCard({ product }: Props) {
                 مستعمل
               </span>
             )}
+            {stock === "low" && (
+              <span className="badge bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg shadow">
+                كمية محدودة
+              </span>
+            )}
           </div>
+
+          {/* غطاء النفاد */}
+          {isOut && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+              <span className="rounded-xl bg-white/95 px-4 py-1.5 text-sm font-bold text-gray-700 shadow">
+                نفد المخزون
+              </span>
+            </div>
+          )}
 
           {/* زر المفضلة — ظاهر دائماً على اللمس، وعند التمرير على سطح المكتب */}
           <button onClick={handleWishlist}

@@ -11,10 +11,33 @@ const sb = createBrowserClient(
 );
 
 interface ProductVariantRow {
+  id?:        string;
   sku:        string | null;
   attributes: Record<string, string>;
   products:   { name_ar: string; sku: string | null } | { name_ar: string; sku: string | null }[] | null;
 }
+
+interface Movement {
+  id: string;
+  product_name: string | null;
+  movement_type: string;
+  quantity: number;
+  quantity_before: number | null;
+  quantity_after: number | null;
+  reason: string | null;
+  created_at: string;
+}
+
+const MOVEMENT_LABELS: Record<string, { label: string; cls: string }> = {
+  initial:  { label: "رصيد افتتاحي", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  add:      { label: "إضافة",        cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  sale:     { label: "بيع",          cls: "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-accent-400" },
+  return:   { label: "إرجاع",        cls: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" },
+  deduct:   { label: "خصم",          cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  damage:   { label: "تالف",         cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  transfer: { label: "نقل",          cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  adjust:   { label: "تعديل",        cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+};
 
 interface InventoryItem {
   id:                string;
@@ -72,7 +95,7 @@ export default function InventoryPage() {
       .from("inventory")
       .select(`
         id, quantity, reserved_quantity, reorder_level, reorder_quantity, location,
-        product_variants(sku, attributes, products(name_ar, sku))
+        product_variants(id, sku, attributes, products(name_ar, sku))
       `)
       .order("quantity", { ascending: true });
     setItems((data as InventoryItem[]) ?? []);
@@ -157,8 +180,39 @@ export default function InventoryPage() {
   };
 
   const updateQty = async (id: string, qty: number) => {
+    const item = items.find(i => i.id === id);
+    const before = item?.quantity ?? 0;
+    if (qty === before || qty < 0) return;
     await sb.from("inventory").update({ quantity: qty }).eq("id", id);
+    // قيد حركة تعديل يدوي في سجل المخزون
+    const pv = item ? getVariant(item) : null;
+    await sb.from("inventory_movements").insert({
+      variant_id:      pv?.id ?? null,
+      product_name:    getProduct(pv)?.name_ar ?? null,
+      movement_type:   qty > before ? "add" : "deduct",
+      quantity:        Math.abs(qty - before),
+      quantity_before: before,
+      quantity_after:  qty,
+      reason:          "تعديل يدوي من شاشة المخزون",
+      reference_type:  "manual",
+    });
     setItems(prev => prev.map(i => i.id === id ? { ...i, quantity: qty } : i));
+  };
+
+  // سجل الحركات
+  const [movementsModal, setMovementsModal] = useState(false);
+  const [movements,      setMovements]      = useState<Movement[]>([]);
+  const [movementsBusy,  setMovementsBusy]  = useState(false);
+
+  const openMovements = async () => {
+    setMovementsModal(true); setMovementsBusy(true);
+    const { data } = await sb
+      .from("inventory_movements")
+      .select("id, product_name, movement_type, quantity, quantity_before, quantity_after, reason, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setMovements((data as Movement[]) ?? []);
+    setMovementsBusy(false);
   };
 
   const exportCsv = () => {
@@ -192,6 +246,9 @@ export default function InventoryPage() {
             title="ينشئ صفوف مخزون للمنتجات التي لا تظهر هنا"
             className="btn-ghost border border-[var(--border)] gap-2 text-sm">
             {syncing ? <Loader2 size={14} className="animate-spin"/> : <Wand2 size={14}/>} مزامنة المنتجات
+          </button>
+          <button onClick={openMovements} className="btn-ghost border border-[var(--border)] gap-2 text-sm">
+            📜 سجل الحركات
           </button>
           <button onClick={exportCsv} className="btn-ghost border border-[var(--border)] gap-2 text-sm">
             <Download size={14}/> تصدير
@@ -318,6 +375,52 @@ export default function InventoryPage() {
           </div>
         )}
       </div>
+
+      {/* Movements Log Modal */}
+      {movementsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-4 shadow-xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-[var(--text-1)]">📜 سجل حركات المخزون <span className="text-xs text-[var(--text-muted)] font-normal">(آخر 50 حركة)</span></h2>
+              <button onClick={() => setMovementsModal(false)} aria-label="إغلاق"
+                className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                <X size={18}/>
+              </button>
+            </div>
+
+            {movementsBusy ? (
+              <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="skeleton h-12 rounded-lg"/>)}</div>
+            ) : movements.length === 0 ? (
+              <p className="py-10 text-center text-sm text-[var(--text-muted)]">
+                لا توجد حركات بعد — كل بيع وتعديل وإرجاع سيُسجَّل هنا تلقائياً
+              </p>
+            ) : (
+              <div className="overflow-y-auto divide-y divide-[var(--border)] -mx-2">
+                {movements.map(m => {
+                  const t = MOVEMENT_LABELS[m.movement_type] ?? MOVEMENT_LABELS.adjust;
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-2 py-2.5 text-sm">
+                      <span className={`badge shrink-0 text-[11px] px-2 py-0.5 ${t.cls}`}>{t.label}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[var(--text-1)] truncate">{m.product_name ?? "—"}</p>
+                        {m.reason && <p className="text-[11px] text-[var(--text-muted)] truncate">{m.reason}</p>}
+                      </div>
+                      <div className="shrink-0 text-left" dir="ltr">
+                        <p className="font-bold text-[var(--text-1)]">
+                          {m.quantity_before ?? "?"} → {m.quantity_after ?? "?"}
+                        </p>
+                        <p className="text-[10px] text-[var(--text-muted)]">
+                          {new Date(m.created_at).toLocaleString("ar-YE", { dateStyle: "short", timeStyle: "short" })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Quick Add Product Modal */}
       {quickModal && (
