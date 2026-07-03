@@ -104,6 +104,46 @@ export async function notifyOutOfStock(productName: string) {
 }
 
 /** إشعار للعميل عند تغيير حالة طلبه */
+/** إشعار العميل بنتيجة مراجعة الدفع — الرسائل حسب مواصفة نظام الدفع */
+export async function notifyCustomerPayment(
+  customerId: string,
+  orderNumber: string,
+  orderId: string,
+  kind: "verified" | "rejected" | "revision" | "refunded",
+  note?: string,
+) {
+  const messages: Record<typeof kind, { title: string; body: string }> = {
+    verified: {
+      title: `تم استلام دفعتك — #${orderNumber} ✅`,
+      body:  "تم استلام دفعتك بنجاح، جاري تجهيز الطلب.",
+    },
+    rejected: {
+      title: `تعذّر اعتماد دفعتك — #${orderNumber}`,
+      body:  note
+        ? `لم نتمكن من اعتماد العملية: ${note}`
+        : "لم نتمكن من اعتماد العملية لأن المبلغ غير مطابق لقيمة الطلب.",
+    },
+    revision: {
+      title: `دفعتك بحاجة لاستكمال — #${orderNumber}`,
+      body:  note
+        ? `${note} — أعد رفع إثبات التحويل من صفحة الطلب.`
+        : "أعد رفع إثبات تحويل واضح من صفحة الطلب لنتمكن من التحقق.",
+    },
+    refunded: {
+      title: `تم إرجاع مبلغ طلبك — #${orderNumber}`,
+      body:  note ?? "تم إرجاع مبلغ الطلب إلى حسابك.",
+    },
+  };
+  const msg = messages[kind];
+  await createNotification({
+    userId: customerId,
+    type:   kind === "verified" ? "order_paid" : "system",
+    title:  msg.title,
+    body:   msg.body,
+    link:   `/account/orders/${orderId}`,
+  });
+}
+
 export async function notifyCustomerOrderStatus(
   customerId: string,
   orderNumber: string,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { PaymentGateway } from "@/lib/payment/gateway";
 import { createClient } from "@supabase/supabase-js";
 
 function sb() {
@@ -19,11 +20,15 @@ export async function GET(request: NextRequest) {
   const limit  = Math.min(Number(url.searchParams.get("limit") ?? 50), 100);
   const offset = Number(url.searchParams.get("offset") ?? 0);
 
+  // كنس المهل المنتهية عند كل فتح للشاشة (بديل رخيص عن cron)
+  await PaymentGateway.sweepExpired().catch(() => {});
+
   let query = sb()
     .from("payments")
     .select(`
       id, provider_code, method, amount, currency, status,
       transaction_ref, confirmed_at, created_at, instructions,
+      reference_code, paid_amount, review_note, receipt_url, customer_note, expires_at,
       orders(id, order_number, customer_id, total_amount,
         profiles(full_name, phone))
     `, { count: "exact" })

@@ -25,17 +25,18 @@ export class TransferPointsProvider implements IPaymentProvider {
   ) {}
 
   async initiate(req: InitiatePaymentRequest): Promise<InitiatePaymentResult> {
+    const reference = req.referenceCode ?? req.orderNumber;
     return {
       success:   true,
       paymentId: req.orderId,
       status:    "awaiting_confirmation",
       instruction: {
         type:            "transfer_details",
-        referenceNumber: req.orderNumber,
+        referenceNumber: reference,
         steps: [
           `توجّه إلى أقرب نقطة ${this.networkName} منك`,
           `اطلب التحويل بمبلغ ${req.amount.toLocaleString("ar")} ${req.currency}`,
-          `اذكر رقم المرجع: ${req.orderNumber}`,
+          `اذكر رقم المرجع: ${reference} ليُكتب في بيان الحوالة`,
           "احتفظ بإيصال التحويل",
           "سيتم تأكيد طلبك بعد مراجعة الدفع",
         ],

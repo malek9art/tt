@@ -37,9 +37,11 @@ export class ManualWalletProvider implements IPaymentProvider {
     const accountNumber = matching?.number ?? this.cfg.accountNumber ?? accounts[0]?.number ?? "";
     const accountName   = this.cfg.accountName ?? "";
 
+    const reference = req.referenceCode ?? req.orderNumber;
     const steps = this.cfg.instructions ?? [
       `افتح تطبيق ${this.providerName}`,
       `أرسل مبلغ ${req.amount.toLocaleString("ar")} ${req.currency} إلى الرقم المناسب للعملة`,
+      `اكتب المرجع ${reference} في وصف/بيان التحويل`,
       "بعد التحويل أرفق صورة الإيصال أو نص الإشعار في نفس الصفحة",
       "سيبقى طلبك قيد المراجعة حتى يتأكد فريقنا من استلام المبلغ",
     ];
@@ -53,7 +55,7 @@ export class ManualWalletProvider implements IPaymentProvider {
         accountNumber,
         accountName,
         bankName:      this.cfg.bankName,
-        referenceNumber: req.orderNumber,
+        referenceNumber: reference,
         steps,
         extra: accounts.length > 0 ? { accounts } : undefined,
       },

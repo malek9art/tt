@@ -23,6 +23,16 @@ function serviceClient() {
   );
 }
 
+// مرجع دفع فريد قصير — أحرف/أرقام غير ملتبسة (بلا O/0/I/1)
+function generateReferenceCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const arr = new Uint32Array(6);
+  crypto.getRandomValues(arr);
+  let code = "";
+  for (const n of arr) code += chars[n % chars.length];
+  return `PAY-${code}`;
+}
+
 // ── Provider Registry ────────────────────────────────
 
 // Build multi-currency accounts array from provider config keys
@@ -123,25 +133,35 @@ export const PaymentGateway = {
       };
     }
 
-    // Create payment record
-    const { data: payment, error: dbErr } = await sb
-      .from("payments")
-      .insert({
-        order_id:       req.orderId,
-        provider_code:  req.providerCode,
-        method:         req.providerCode,
-        amount:         req.amount,
-        currency:       req.currency,
-        status:         "pending",
-        idempotency_key: `${req.orderId}-${req.providerCode}-${Date.now()}`,
-      })
-      .select("id")
-      .single();
+    // Create payment record — مع مرجع فريد (إعادة محاولة واحدة عند تصادم نادر)
+    let payment: { id: string; reference_code: string } | null = null;
+    for (let attempt = 0; attempt < 2 && !payment; attempt++) {
+      const referenceCode = generateReferenceCode();
+      const { data, error: dbErr } = await sb
+        .from("payments")
+        .insert({
+          order_id:       req.orderId,
+          provider_code:  req.providerCode,
+          method:         req.providerCode,
+          amount:         req.amount,
+          currency:       req.currency,
+          status:         "pending",
+          reference_code: referenceCode,
+          idempotency_key: `${req.orderId}-${req.providerCode}-${Date.now()}`,
+        })
+        .select("id, reference_code")
+        .single();
+      if (data) payment = data;
+      else if (dbErr && dbErr.code !== "23505") break;
+    }
 
-    if (dbErr || !payment) {
+    if (!payment) {
       return { success: false, paymentId: "", status: "failed",
         instruction: { type: "reference" }, error: "فشل إنشاء سجل الدفع" };
     }
+
+    // المزودون يعرضون المرجع الفريد في التعليمات
+    req.referenceCode = payment.reference_code;
 
     let result: InitiatePaymentResult;
     try {
@@ -201,6 +221,7 @@ export const PaymentGateway = {
       confirmed_by:    req.adminUserId,
       confirmed_at:    new Date().toISOString(),
       transaction_ref: req.transactionRef ?? null,
+      paid_amount:     req.paidAmount ?? null,
     }).eq("id", req.paymentId);
 
     await sb.from("orders").update({
@@ -213,6 +234,103 @@ export const PaymentGateway = {
       { status: finalStatus });
 
     return { success: true, status: finalStatus };
+  },
+
+  /**
+   * Admin rejects a payment (amount mismatch, invalid proof…).
+   */
+  async reject(args: { paymentId: string; adminUserId: string; reason: string; paidAmount?: number }) {
+    const sb = serviceClient();
+    const { data: payment } = await sb
+      .from("payments")
+      .select("id, order_id, provider_code, status")
+      .eq("id", args.paymentId)
+      .single();
+    if (!payment) return { success: false as const, error: "السجل غير موجود" };
+    if (payment.status === "paid") return { success: false as const, error: "الدفعة مؤكدة — استخدم الاسترجاع" };
+
+    await sb.from("payments").update({
+      status:         "failed",
+      failure_reason: args.reason,
+      review_note:    args.reason,
+      paid_amount:    args.paidAmount ?? null,
+      confirmed_by:   args.adminUserId,
+      updated_at:     new Date().toISOString(),
+    }).eq("id", payment.id);
+    await sb.from("orders").update({ payment_status: "failed" }).eq("id", payment.order_id);
+
+    await this._log(payment.id, "reject", payment.provider_code,
+      { admin: args.adminUserId }, { reason: args.reason });
+    return { success: true as const, orderId: payment.order_id as string };
+  },
+
+  /**
+   * Admin requests revision — payment goes back to pending, customer re-uploads proof.
+   */
+  async requestRevision(args: { paymentId: string; adminUserId: string; note: string }) {
+    const sb = serviceClient();
+    const { data: payment } = await sb
+      .from("payments")
+      .select("id, order_id, provider_code, status")
+      .eq("id", args.paymentId)
+      .single();
+    if (!payment) return { success: false as const, error: "السجل غير موجود" };
+    if (payment.status === "paid") return { success: false as const, error: "الدفعة مؤكدة بالفعل" };
+
+    await sb.from("payments").update({
+      status:      "pending",
+      review_note: args.note,
+      updated_at:  new Date().toISOString(),
+    }).eq("id", payment.id);
+    await sb.from("orders").update({ payment_status: "pending" }).eq("id", payment.order_id);
+
+    await this._log(payment.id, "request_revision", payment.provider_code,
+      { admin: args.adminUserId }, { note: args.note });
+    return { success: true as const, orderId: payment.order_id as string };
+  },
+
+  /**
+   * Admin marks a paid payment as refunded (money returned to customer).
+   */
+  async markRefunded(args: { paymentId: string; adminUserId: string; reason?: string }) {
+    const sb = serviceClient();
+    const { data: payment } = await sb
+      .from("payments")
+      .select("id, order_id, provider_code, status")
+      .eq("id", args.paymentId)
+      .single();
+    if (!payment) return { success: false as const, error: "السجل غير موجود" };
+    if (payment.status !== "paid") return { success: false as const, error: "لا يمكن استرجاع دفعة غير مؤكدة" };
+
+    await sb.from("payments").update({
+      status:         "refunded",
+      failure_reason: args.reason ?? "استرجاع يدوي",
+      updated_at:     new Date().toISOString(),
+    }).eq("id", payment.id);
+    await sb.from("orders").update({ payment_status: "refunded" }).eq("id", payment.order_id);
+
+    await this._log(payment.id, "refund", payment.provider_code,
+      { admin: args.adminUserId }, { reason: args.reason });
+    return { success: true as const, orderId: payment.order_id as string };
+  },
+
+  /**
+   * Sweep stale payments past their deadline → expired.
+   * Cheap cron substitute — runs when the admin payments screen loads.
+   */
+  async sweepExpired(): Promise<number> {
+    const sb = serviceClient();
+    const { data: stale } = await sb
+      .from("payments")
+      .update({ status: "expired", updated_at: new Date().toISOString() })
+      .in("status", ["pending", "awaiting_confirmation"])
+      .not("expires_at", "is", null)
+      .lt("expires_at", new Date().toISOString())
+      .select("id, order_id");
+    for (const p of stale ?? []) {
+      await sb.from("orders").update({ payment_status: "expired" }).eq("id", p.order_id);
+    }
+    return stale?.length ?? 0;
   },
 
   /**

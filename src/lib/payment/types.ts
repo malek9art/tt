@@ -46,6 +46,8 @@ export interface InitiatePaymentRequest {
   customerName?: string;
   returnUrl?: string;
   metadata?: Record<string, unknown>;
+  /** مرجع الدفع الفريد — يولّده الـGateway ويكتبه العميل في بيان التحويل */
+  referenceCode?: string;
 }
 
 export interface PaymentInstruction {
@@ -80,6 +82,8 @@ export interface ConfirmPaymentRequest {
   adminUserId: string;
   transactionRef?: string;
   notes?: string;
+  /** المبلغ المدفوع فعلاً كما تحقق منه الأدمن */
+  paidAmount?: number;
 }
 
 export interface ConfirmPaymentResult {

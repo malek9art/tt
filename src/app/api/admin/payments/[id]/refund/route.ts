@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { PaymentGateway } from "@/lib/payment/gateway";
+import { afterPaymentReview } from "@/lib/admin/payment-review";
 import { createClient } from "@supabase/supabase-js";
-
-function sb() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } },
-  );
-}
 
 export async function POST(
   request: NextRequest,
@@ -20,29 +14,29 @@ export async function POST(
   const { id } = await params;
   const body = await request.json().catch(() => ({})) as { notes?: string };
 
-  const { data: payment, error: fetchErr } = await sb()
-    .from("payments")
-    .select("id, status, provider_code")
-    .eq("id", id)
-    .single();
-
-  if (fetchErr) return NextResponse.json({ error: "لم يُعثر على عملية الدفع" }, { status: 404 });
-  if (payment.status !== "paid") {
-    return NextResponse.json({ error: "يمكن استرجاع المدفوعات المكتملة فقط" }, { status: 400 });
-  }
-  if (payment.provider_code === "stripe") {
+  // Stripe يُسترجع من لوحة Stripe نفسها (عكس العملية المالية خارج نطاقنا)
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } },
+  );
+  const { data: payment } = await sb
+    .from("payments").select("provider_code").eq("id", id).single();
+  if (payment?.provider_code === "stripe") {
     return NextResponse.json({ error: "الاسترجاع عبر Stripe يجب أن يتم من لوحة Stripe مباشرة" }, { status: 400 });
   }
 
-  const { error } = await sb()
-    .from("payments")
-    .update({
-      status:       "refunded",
-      failure_reason: body.notes ?? "استرجاع يدوي من الإدارة",
-      updated_at:   new Date().toISOString(),
-    })
-    .eq("id", id);
+  const result = await PaymentGateway.markRefunded({
+    paymentId: id,
+    adminUserId: auth.user.id,
+    reason: body.notes,
+  });
+  if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await afterPaymentReview({
+    paymentId: id, orderId: result.orderId,
+    adminUserId: auth.user.id, kind: "refunded", note: body.notes,
+  });
+
   return NextResponse.json({ success: true, status: "refunded" });
 }

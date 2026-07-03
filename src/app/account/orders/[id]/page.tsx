@@ -12,6 +12,16 @@ import {
   XCircle, ChevronLeft, Phone, Camera
 } from "lucide-react";
 import { formatPrice } from "@/lib/api";
+import ReceiptAttach from "@/components/payment/ReceiptAttach";
+
+const PAYMENT_STATUS_AR: Record<string, { label: string; cls: string }> = {
+  pending:               { label: "بانتظار الدفع",   cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+  awaiting_confirmation: { label: "قيد المراجعة",     cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  paid:                  { label: "تم التحقق ✓",      cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  failed:                { label: "مرفوض",            cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  expired:               { label: "انتهت المهلة",     cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+  refunded:              { label: "تم الاسترجاع",     cls: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+};
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,6 +63,7 @@ export default function OrderDetailPage() {
         subtotal, shipping_fee, discount_amount, total_amount, currency,
         address_snapshot, notes, created_at, updated_at,
         tracking_token,
+        payments(id, provider_code, status, amount, currency, reference_code, review_note, receipt_url, customer_note),
         order_items(
           id, name_snapshot, sku_snapshot, attrs_snapshot,
           price, quantity, subtotal,
@@ -99,6 +110,14 @@ export default function OrderDetailPage() {
 
   const items    = (order.order_items as Row[]) ?? [];
   const addr     = order.address_snapshot as Row;
+  // أحدث عملية دفع للطلب
+  const paysRaw  = order.payments as Row[] | Row | null;
+  const paysArr  = Array.isArray(paysRaw) ? paysRaw : paysRaw ? [paysRaw] : [];
+  const payment  = paysArr[paysArr.length - 1] ?? null;
+  const payCfg   = payment ? (PAYMENT_STATUS_AR[String(payment.status)] ?? PAYMENT_STATUS_AR.pending) : null;
+  const canResubmitProof = payment
+    && ["pending", "awaiting_confirmation"].includes(String(payment.status))
+    && !["cod", "stripe"].includes(String(payment.provider_code));
   const shipsArr = order.shipments as Row[] | Row | null;
   const ship     = Array.isArray(shipsArr) ? shipsArr[0] : (shipsArr ?? null);
   const statusIdx = STATUS_IDX[String(order.status)] ?? 0;
@@ -177,6 +196,48 @@ export default function OrderDetailPage() {
               <XCircle size={20}/>
               <span className="font-semibold">تم إلغاء هذا الطلب</span>
             </div>
+          </div>
+        )}
+
+        {/* حالة الدفع */}
+        {payment && payCfg && (
+          <div className="card-base p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h2 className="font-semibold text-[var(--text-1)]">💳 حالة الدفع</h2>
+              <span className={`badge text-xs px-2.5 py-1 ${payCfg.cls}`}>{payCfg.label}</span>
+            </div>
+
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              <div className="flex justify-between rounded-lg bg-[var(--bg-page)] px-3 py-2">
+                <span className="text-[var(--text-muted)]">المبلغ</span>
+                <span className="font-bold text-[var(--text-1)]">
+                  {Number(payment.amount).toLocaleString("ar")} {String(payment.currency)}
+                </span>
+              </div>
+              {payment.reference_code ? (
+                <div className="flex justify-between items-center rounded-lg bg-[var(--bg-page)] px-3 py-2">
+                  <span className="text-[var(--text-muted)]">مرجع الدفع</span>
+                  <span className="font-mono font-bold text-brand-700 dark:text-accent-400" dir="ltr">
+                    {String(payment.reference_code)}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            {/* ملاحظة المراجعة / سبب الرفض من الإدارة */}
+            {payment.review_note ? (
+              <div className={`rounded-xl border p-3 text-sm ${
+                payment.status === "failed"
+                  ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+                  : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+              }`}>
+                <b>{payment.status === "failed" ? "سبب عدم الاعتماد: " : "ملاحظة من الإدارة: "}</b>
+                {String(payment.review_note)}
+              </div>
+            ) : null}
+
+            {/* إعادة رفع الإثبات للوسائل اليدوية */}
+            {canResubmitProof ? <ReceiptAttach paymentId={String(payment.id)}/> : null}
           </div>
         )}
 

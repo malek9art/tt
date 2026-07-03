@@ -21,6 +21,11 @@ interface Payment {
   receipt_url: string | null;
   confirmed_at: string | null;
   created_at: string;
+  reference_code: string | null;
+  paid_amount: number | null;
+  review_note: string | null;
+  customer_note: string | null;
+  expires_at: string | null;
   orders: {
     id: string;
     order_number: string;
@@ -68,6 +73,12 @@ export default function PaymentsPage() {
   const [logsLoading, setLogsLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // نافذة رفض / طلب تعديل
+  const [actionModal, setActionModal] = useState<{ payment: Payment; kind: "reject" | "revision" } | null>(null);
+  const [actionNote,  setActionNote]  = useState("");
+  const [actionError, setActionError] = useState("");
+  const [paidAmount,  setPaidAmount]  = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
     const qs = filter ? `?status=${filter}` : "";
@@ -80,7 +91,29 @@ export default function PaymentsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openConfirm = (p: Payment) => { setModal(p); setTxnRef(""); setReceipt(null); };
+  const openConfirm = (p: Payment) => { setModal(p); setTxnRef(""); setReceipt(null); setPaidAmount(String(p.amount)); };
+
+  const openAction = (p: Payment, kind: "reject" | "revision") => {
+    setActionModal({ payment: p, kind }); setActionNote(""); setActionError("");
+  };
+
+  const submitAction = async () => {
+    if (!actionModal) return;
+    const note = actionNote.trim();
+    if (!note) { setActionError("النص إلزامي — سيصل للعميل حرفياً"); return; }
+    setSaving(true); setActionError("");
+    const path = actionModal.kind === "reject" ? "reject" : "request-revision";
+    const res  = await fetch(`/api/admin/payments/${actionModal.payment.id}/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(actionModal.kind === "reject" ? { reason: note } : { note }),
+    });
+    const d = await res.json();
+    setSaving(false);
+    if (!res.ok) { setActionError(d.error ?? "فشل الإجراء"); return; }
+    setActionModal(null);
+    load();
+  };
 
   const uploadReceipt = async (paymentId: string, file: File): Promise<string | null> => {
     setUploading(true);
@@ -102,10 +135,15 @@ export default function PaymentsPage() {
     const res = await fetch(`/api/admin/payments/${modal.id}/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transactionRef: txnRef || undefined, receiptUrl }),
+      body: JSON.stringify({
+        transactionRef: txnRef || undefined,
+        receiptUrl,
+        paidAmount: paidAmount ? Number(paidAmount) : undefined,
+      }),
     });
     const d = await res.json();
     if (d.success) { setModal(null); load(); }
+    else if (d.error) alert(d.error);
     setSaving(false);
   };
 
@@ -149,7 +187,7 @@ export default function PaymentsPage() {
 
       {/* Status filter chips */}
       <div className="flex items-center gap-2 flex-wrap">
-        {["","pending","awaiting_confirmation","paid","failed","refunded"].map(s => (
+        {["","pending","awaiting_confirmation","paid","failed","expired","refunded"].map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
               filter === s
@@ -173,7 +211,7 @@ export default function PaymentsPage() {
           <table className="w-full text-sm">
             <thead className="border-b border-[var(--border)] bg-[var(--bg-card)]">
               <tr>
-                {["رقم الطلب","العميل","المزود","المبلغ","الحالة","التاريخ","إجراءات"].map(h => (
+                {["رقم الطلب","المرجع","العميل","المزود","المبلغ","الحالة","التاريخ","إجراءات"].map(h => (
                   <th key={h} className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)]">{h}</th>
                 ))}
               </tr>
@@ -187,6 +225,9 @@ export default function PaymentsPage() {
                   <tr key={p.id} className="bg-[var(--bg-card)] hover:bg-[var(--bg-page)] transition-colors">
                     <td className="px-4 py-3 font-mono font-semibold text-[var(--text-1)]" dir="ltr">
                       #{order?.order_number ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-brand-700 dark:text-accent-400" dir="ltr">
+                      {p.reference_code ?? "—"}
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-[var(--text-1)]">{profile?.full_name ?? "—"}</p>
@@ -207,10 +248,20 @@ export default function PaymentsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         {needsConfirm(p) && (
-                          <button onClick={() => openConfirm(p)}
-                            className="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 transition-colors">
-                            تأكيد
-                          </button>
+                          <>
+                            <button onClick={() => openConfirm(p)}
+                              className="rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 transition-colors">
+                              تأكيد
+                            </button>
+                            <button onClick={() => openAction(p, "revision")}
+                              className="rounded-lg border border-amber-300 text-amber-600 px-3 py-1.5 text-xs font-medium hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                              طلب تعديل
+                            </button>
+                            <button onClick={() => openAction(p, "reject")}
+                              className="rounded-lg border border-red-300 text-red-600 px-3 py-1.5 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                              رفض
+                            </button>
+                          </>
                         )}
                         {p.status === "paid" && p.provider_code !== "stripe" && (
                           <button onClick={() => refund(p)}
@@ -265,6 +316,35 @@ export default function PaymentsPage() {
               </div>
             </div>
 
+            {/* إثبات العميل إن وُجد */}
+            {(modal.receipt_url || modal.customer_note) && (
+              <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3 text-xs space-y-1.5">
+                <p className="font-semibold text-blue-700 dark:text-blue-300">إثبات العميل:</p>
+                {modal.customer_note && <p className="text-blue-700 dark:text-blue-300 whitespace-pre-line">{modal.customer_note}</p>}
+                {modal.receipt_url && (
+                  <a href={modal.receipt_url} target="_blank" rel="noreferrer" className="underline font-semibold text-blue-700 dark:text-blue-300">
+                    📎 فتح صورة الإيصال
+                  </a>
+                )}
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-medium text-[var(--text-2)] mb-1.5 block">
+                المبلغ المدفوع فعلاً *
+              </label>
+              <input type="number" dir="ltr" value={paidAmount}
+                onChange={e => setPaidAmount(e.target.value)}
+                className={`w-full rounded-xl border bg-[var(--bg-page)] px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 ${
+                  paidAmount && Number(paidAmount) !== modal.amount ? "border-red-400" : "border-[var(--border)]"
+                }`}/>
+              {paidAmount && Number(paidAmount) !== modal.amount && (
+                <p className="mt-1 text-xs text-red-500">
+                  لا يطابق المطلوب ({modal.amount.toLocaleString("ar")}) — لا يمكن التأكيد؛ استخدم «رفض» مع ذكر السبب
+                </p>
+              )}
+            </div>
+
             <div>
               <label className="text-xs font-medium text-[var(--text-2)] mb-1.5 block">
                 رقم مرجع العملية (اختياري)
@@ -299,6 +379,57 @@ export default function PaymentsPage() {
               <button onClick={confirm} disabled={saving || uploading} className="btn-primary flex-1 justify-center gap-2">
                 <HiCheckCircle className="text-base"/>
                 {uploading ? "جاري الرفع..." : saving ? "جاري الحفظ..." : "تأكيد الاستلام"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject / Revision Modal ── */}
+      {actionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setActionModal(null)}/>
+          <div className="relative w-full max-w-sm rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[var(--text-1)]">
+                {actionModal.kind === "reject" ? "رفض عملية الدفع" : "طلب استكمال من العميل"}
+              </h3>
+              <button onClick={() => setActionModal(null)} className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                <HiXMark className="text-xl"/>
+              </button>
+            </div>
+
+            <div className="rounded-xl bg-[var(--bg-page)] p-3 text-sm flex justify-between">
+              <span className="text-[var(--text-muted)]">الطلب <b className="font-mono text-[var(--text-1)]" dir="ltr">#{actionModal.payment.orders?.order_number}</b></span>
+              <span className="font-bold text-brand-700 dark:text-accent-400">
+                {actionModal.payment.amount.toLocaleString("ar")} {actionModal.payment.currency}
+              </span>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-[var(--text-2)] mb-1.5 block">
+                {actionModal.kind === "reject"
+                  ? "سبب الرفض * (يصل للعميل حرفياً)"
+                  : "ما المطلوب من العميل؟ * (يصله حرفياً)"}
+              </label>
+              <textarea rows={3} value={actionNote}
+                onChange={e => { setActionNote(e.target.value); setActionError(""); }}
+                placeholder={actionModal.kind === "reject"
+                  ? "مثال: المبلغ المستلم أقل من قيمة الطلب"
+                  : "مثال: صورة الإيصال غير واضحة — أعد رفع صورة أوضح"}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 resize-none"/>
+              {actionError && <p className="mt-1 text-xs text-red-500">⚠ {actionError}</p>}
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setActionModal(null)} className="btn-ghost border border-[var(--border)] flex-1 justify-center">
+                إلغاء
+              </button>
+              <button onClick={submitAction} disabled={saving}
+                className={`flex-1 justify-center items-center flex gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition-colors ${
+                  actionModal.kind === "reject" ? "bg-red-600 hover:bg-red-700" : "bg-amber-500 hover:bg-amber-600"
+                }`}>
+                {saving ? "جاري..." : actionModal.kind === "reject" ? "رفض الدفعة" : "إرسال الطلب"}
               </button>
             </div>
           </div>
