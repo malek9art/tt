@@ -35,7 +35,7 @@
 ```
 URL:      /admin/login
 البريد:   ahmadicenterstore@gmail.com
-المرور:   Ahmadi@2025!
+المرور:   
 ```
 
 > آخر تحديث: 2026-06-29 11:56 UTC
