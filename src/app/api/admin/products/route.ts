@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { buildSlug } from "@/lib/slug";
+import { createProductWithInventory } from "@/lib/admin/create-product";
 
 export async function GET(request: NextRequest) {
   const { error, supabase } = await requireAdmin("products:read");
@@ -40,12 +40,9 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
 
-  const { data, error: dbErr } = await supabase
-    .from("products")
-    .insert({ ...body, slug: buildSlug(body), created_by: user!.id })
-    .select("id, slug")
-    .single();
+  // منطق موحّد: منتج + متغيّر افتراضي + سجل مخزون — نفس مسار الإضافة السريعة
+  const result = await createProductWithInventory(supabase, user!.id, body);
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json({ id: result.product_id, slug: result.slug, sku: result.sku }, { status: 201 });
 }

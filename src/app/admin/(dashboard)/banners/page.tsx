@@ -39,6 +39,38 @@ export default function BannersPage() {
   const [imgMode, setImgMode] = useState<"upload" | "url">("upload");
   const [uploading, setUploading] = useState(false);
 
+  // رابط الزر: بحث عن منتج أو رابط مخصص
+  const [linkMode,    setLinkMode]    = useState<"product" | "custom">("product");
+  const [prodQuery,   setProdQuery]   = useState("");
+  const [prodResults, setProdResults] = useState<{ id: string; name_ar: string; slug: string; base_price: number }[]>([]);
+  const [prodSearching, setProdSearching] = useState(false);
+
+  useEffect(() => {
+    if (linkMode !== "product" || prodQuery.trim().length < 2) { setProdResults([]); return; }
+    setProdSearching(true);
+    const t = setTimeout(async () => {
+      const { data } = await sbc
+        .from("products")
+        .select("id, name_ar, slug, base_price")
+        .eq("status", "published")
+        .ilike("name_ar", `%${prodQuery.trim()}%`)
+        .limit(8);
+      setProdResults(data ?? []);
+      setProdSearching(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [prodQuery, linkMode]);
+
+  const pickProduct = (p: { name_ar: string; slug: string }) => {
+    setForm(f => ({
+      ...f,
+      link_url: `/products/${p.slug}`,
+      link_label: f.link_label?.trim() ? f.link_label : "اشترِ الآن",
+    }));
+    setProdQuery(p.name_ar);
+    setProdResults([]);
+  };
+
   const load = async () => {
     setLoading(true);
     const res = await fetch("/api/admin/banners");
@@ -50,13 +82,19 @@ export default function BannersPage() {
   useEffect(() => { load(); }, []);
 
   const openAdd = () => {
-    setForm(EMPTY); setEditId(null); setError(""); setImgMode("upload"); setModal(true);
+    setForm(EMPTY); setEditId(null); setError(""); setImgMode("upload");
+    setLinkMode("product"); setProdQuery(""); setProdResults([]);
+    setModal(true);
   };
 
   const openEdit = (b: Banner) => {
     const { id, ...rest } = b;
     setForm({ ...rest, starts_at: rest.starts_at?.slice(0,16) ?? "", ends_at: rest.ends_at?.slice(0,16) ?? "" });
-    setEditId(id); setError(""); setImgMode("url"); setModal(true);
+    setEditId(id); setError(""); setImgMode("url");
+    // إن كان الرابط الحالي يشير لمنتج نبقى في وضع البحث، وإلا وضع الرابط المخصص
+    setLinkMode(b.link_url?.startsWith("/products/") ? "product" : "custom");
+    setProdQuery(""); setProdResults([]);
+    setModal(true);
   };
 
   const uploadBannerImage = async (file: File) => {
@@ -264,19 +302,66 @@ export default function BannersPage() {
                   placeholder="مثال: عرض محدود"
                   className="input-base w-full"/>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-2)] mb-1">رابط الزر</label>
+              {/* رابط الزر — بحث عن منتج أو رابط مخصص */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium text-[var(--text-2)]">رابط الزر</label>
+                  <div className="flex rounded-lg border border-[var(--border)] overflow-hidden text-xs">
+                    <button type="button" onClick={() => setLinkMode("product")}
+                      className={`px-3 py-1 font-medium transition-colors ${linkMode === "product" ? "bg-brand-700 text-white" : "text-[var(--text-2)]"}`}>
+                      🔍 منتج
+                    </button>
+                    <button type="button" onClick={() => setLinkMode("custom")}
+                      className={`px-3 py-1 font-medium transition-colors ${linkMode === "custom" ? "bg-brand-700 text-white" : "text-[var(--text-2)]"}`}>
+                      رابط مخصص
+                    </button>
+                  </div>
+                </div>
+
+                {linkMode === "product" ? (
+                  <div className="relative">
+                    <input value={prodQuery}
+                      onChange={e => setProdQuery(e.target.value)}
+                      placeholder="ابحث عن منتج بالاسم..."
+                      className="input-base w-full"/>
+                    {prodSearching && (
+                      <span className="absolute top-1/2 -translate-y-1/2 start-3 text-xs text-[var(--text-muted)]">يبحث…</span>
+                    )}
+                    {prodResults.length > 0 && (
+                      <div className="absolute z-20 mt-1 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-xl overflow-hidden">
+                        {prodResults.map(p => (
+                          <button key={p.id} type="button" onClick={() => pickProduct(p)}
+                            className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-sm text-right hover:bg-[var(--bg-page)] transition-colors border-b border-[var(--border)] last:border-0">
+                            <span className="text-[var(--text-1)] truncate">{p.name_ar}</span>
+                            <span className="shrink-0 text-xs text-brand-700 dark:text-accent-400 font-semibold">
+                              {new Intl.NumberFormat("ar-YE").format(p.base_price)} ﷼
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {prodQuery.trim().length >= 2 && !prodSearching && prodResults.length === 0 && !form.link_url?.startsWith("/products/") && (
+                      <p className="mt-1 text-xs text-[var(--text-muted)]">لا نتائج — جرّب اسماً آخر</p>
+                    )}
+                    {form.link_url?.startsWith("/products/") && (
+                      <p className="mt-1 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                        ✓ الزر يفتح: <span dir="ltr" className="font-mono">{form.link_url}</span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
                   <input value={form.link_url || ""} onChange={e => F("link_url", e.target.value)}
-                    placeholder="/products?cat=phones"
+                    placeholder="/products?cat=smartphones أو رابط خارجي"
+                    dir="ltr"
                     className="input-base w-full"/>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-2)] mb-1">نص الزر</label>
-                  <input value={form.link_label || ""} onChange={e => F("link_label", e.target.value)}
-                    placeholder="تسوّق الآن"
-                    className="input-base w-full"/>
-                </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-2)] mb-1">نص الزر</label>
+                <input value={form.link_label || ""} onChange={e => F("link_label", e.target.value)}
+                  placeholder="تسوّق الآن"
+                  className="input-base w-full"/>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

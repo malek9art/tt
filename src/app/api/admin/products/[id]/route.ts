@@ -31,6 +31,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .from("products").update(body).eq("id", id).select("id").single();
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
+
+  // مزامنة سعر المتغيّر الافتراضي مع سعر المنتج — وإلا يبقى العميل يرى السعر القديم
+  // (واجهة المتجر تعرض سعر المتغيّر لا سعر المنتج)
+  if (body.base_price !== undefined) {
+    const { data: variants } = await supabase
+      .from("product_variants")
+      .select("id, attributes")
+      .eq("product_id", id)
+      .eq("is_active", true);
+    const isDefaultOnly =
+      variants?.length === 1 &&
+      Object.keys((variants[0].attributes as Record<string, unknown>) ?? {}).length === 0;
+    if (isDefaultOnly) {
+      await supabase.from("product_variants")
+        .update({ price: Number(body.base_price) })
+        .eq("id", variants![0].id);
+    }
+  }
+
   return NextResponse.json(data);
 }
 

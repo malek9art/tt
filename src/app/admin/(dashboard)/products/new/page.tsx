@@ -74,11 +74,13 @@ export default function NewProductPage() {
     const id = await createProduct();
     if (!id) { setError("فشل في حفظ المنتج، حاول مجدداً"); setLoading(false); return; }
 
-    // تحديث البيانات بالحالة المختارة
+    // تحديث البيانات بالحالة المختارة — بدون slug حتى لا يُعاد توليده
+    const { slug: _slug, ...patchForm } = form as typeof form & { slug?: string };
+    void _slug;
     await fetch(`/api/admin/products/${id}`,{
       method:"PATCH", headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
-        ...form, base_price:Number(form.base_price),
+        ...patchForm, base_price:Number(form.base_price),
         category_id:form.category_id||null, brand_id:form.brand_id||null,
         status: form.status,
       }),
