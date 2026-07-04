@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { getPureCustomerIds } from "@/lib/admin/customers";
 
 export async function GET(request: NextRequest) {
   const { error, supabase } = await requireAdmin("products:read");
@@ -11,6 +12,8 @@ export async function GET(request: NextRequest) {
   const since = new Date();
   since.setDate(since.getDate() - days);
   const sinceISO = since.toISOString();
+
+  const customerIds = await getPureCustomerIds();
 
   const [
     revenueRes, ordersRes, productsRes, customersRes,
@@ -26,9 +29,12 @@ export async function GET(request: NextRequest) {
     // المنتجات المنشورة
     supabase.from("products").select("id", { count: "exact", head: true })
       .eq("status", "published"),
-    // العملاء الجدد
-    supabase.from("profiles").select("id", { count: "exact", head: true })
-      .gte("created_at", sinceISO),
+    // العملاء الجدد فقط (بلا موظفين/مناديب)
+    customerIds.size === 0
+      ? Promise.resolve({ count: 0 })
+      : supabase.from("profiles").select("id", { count: "exact", head: true })
+          .in("id", Array.from(customerIds))
+          .gte("created_at", sinceISO),
     // المبيعات اليومية
     supabase.from("orders")
       .select("created_at, total_amount, payment_status")

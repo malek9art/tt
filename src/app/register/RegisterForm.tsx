@@ -76,7 +76,7 @@ export default function RegisterForm() {
     const { error: err } = await supabase.auth.verifyOtp({
       email: form.email.trim().toLowerCase(),
       token: code,
-      type:  "signup",
+      type:  "email",
     });
 
     setVerifying(false);

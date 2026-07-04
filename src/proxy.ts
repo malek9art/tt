@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { fetchUserPermissions } from "@/lib/admin/permission-tabs";
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -45,13 +46,11 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }
 
-    // التحقق من صلاحيات الإدارة
-    const { data: isAdmin } = await supabase.rpc("has_permission", {
-      _user_id: user.id,
-      _perm: "products:read",
-    });
-
-    if (!isAdmin) {
+    // التحقق من الصلاحيات — أي صلاحية فعلية واحدة تكفي (موظف بتبويب واحد
+    // فقط، مثل محاسب أو دعم بلا products:read، يجب ألا يُسجَّل خروجه هنا
+    // بعد أن سمحت له شاشة الدخول بالدخول أصلاً)
+    const permissions = await fetchUserPermissions(supabase, user.id);
+    if (permissions.size === 0) {
       await supabase.auth.signOut();
       return NextResponse.redirect(
         new URL("/admin/login?error=unauthorized", request.url)

@@ -46,8 +46,18 @@ export async function POST(request: NextRequest) {
 
     const waResult = await sendWhatsAppOtp(phone, code);
     if (!waResult.success) {
+      if (waResult.code === "not_configured") {
+        console.error("WhatsApp not configured on server:", waResult.error);
+        return NextResponse.json(
+          { error: "تسجيل الدخول عبر واتساب غير متاح حالياً — استخدم البريد الإلكتروني" },
+          { status: 503 },
+        );
+      }
       console.error("WhatsApp send error:", waResult.error);
-      return NextResponse.json({ error: "فشل في إرسال الرمز — تحقق من الرقم" }, { status: 502 });
+      return NextResponse.json(
+        { error: "تعذّر إرسال الرمز حالياً — حاول مجدداً بعد قليل أو استخدم البريد الإلكتروني" },
+        { status: 502 },
+      );
     }
 
     return NextResponse.json({ success: true, phone });

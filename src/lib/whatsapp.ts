@@ -1,6 +1,9 @@
 export interface WhatsAppResult {
   success: boolean;
   error?:  string;
+  /** يميّز "الخدمة غير مُعدّة على الخادم" عن "فشل فعلي من المزوّد" — حتى لا
+   *  يُلام رقم العميل خطأً عندما يكون السبب مفتاح API مفقوداً */
+  code?:   "not_configured" | "provider_error";
 }
 
 export function normalisePhone(raw: string): string {
@@ -13,7 +16,7 @@ export function normalisePhone(raw: string): string {
 
 async function sendFonnte(phone: string, message: string): Promise<WhatsAppResult> {
   const apiKey = process.env.FONNTE_API_KEY;
-  if (!apiKey) return { success: false, error: "FONNTE_API_KEY not set" };
+  if (!apiKey) return { success: false, error: "FONNTE_API_KEY not set", code: "not_configured" };
 
   const target = phone.replace("+", "");
   const res = await fetch("https://api.fonnte.com/send", {
@@ -22,15 +25,15 @@ async function sendFonnte(phone: string, message: string): Promise<WhatsAppResul
     body: JSON.stringify({ target, message, countryCode: "967" }),
   });
 
-  if (!res.ok) return { success: false, error: `Fonnte HTTP ${res.status}` };
+  if (!res.ok) return { success: false, error: `Fonnte HTTP ${res.status}`, code: "provider_error" };
   const data = await res.json() as { status?: boolean; reason?: string };
-  return data.status ? { success: true } : { success: false, error: data.reason };
+  return data.status ? { success: true } : { success: false, error: data.reason, code: "provider_error" };
 }
 
 async function sendMeta(phone: string, message: string): Promise<WhatsAppResult> {
   const token   = process.env.META_WA_TOKEN;
   const phoneId = process.env.META_WA_PHONE_ID;
-  if (!token || !phoneId) return { success: false, error: "META_WA_TOKEN or META_WA_PHONE_ID not set" };
+  if (!token || !phoneId) return { success: false, error: "META_WA_TOKEN or META_WA_PHONE_ID not set", code: "not_configured" };
 
   const to = phone.replace("+", "");
   const res = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
@@ -46,7 +49,7 @@ async function sendMeta(phone: string, message: string): Promise<WhatsAppResult>
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: { message?: string } };
-    return { success: false, error: err?.error?.message ?? `HTTP ${res.status}` };
+    return { success: false, error: err?.error?.message ?? `HTTP ${res.status}`, code: "provider_error" };
   }
   return { success: true };
 }

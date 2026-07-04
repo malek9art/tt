@@ -60,7 +60,8 @@ export default function LoginForm() {
 
     setLoading(false);
     if (err) {
-      if (err.message.toLowerCase().includes("not found") || err.message.includes("User not found")) {
+      // err.code هو الحقل الثابت الموثَّق من SDK — أدق من مطابقة نص الرسالة الحر
+      if (err.code === "user_not_found" || err.message.toLowerCase().includes("not found")) {
         setError("هذا البريد غير مسجّل — هل تريد إنشاء حساب جديد؟");
       } else {
         setError("تعذّر الإرسال — تحقق من البريد وحاول مجدداً");

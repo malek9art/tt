@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { getPureCustomerIds } from "@/lib/admin/customers";
 
 export async function GET() {
   const { error, supabase } = await requireAdmin("products:read");
   if (error) return error;
 
-  const [ordersRes, productsRes, customersRes, revenueRes, pendingRes, recentRes, lowStockRes] =
+  const [customerIds, ordersRes, productsRes, revenueRes, pendingRes, recentRes, lowStockRes] =
     await Promise.all([
+      getPureCustomerIds(),
       supabase.from("orders").select("id", { count: "exact", head: true }),
       supabase.from("products").select("id", { count: "exact", head: true }).eq("status", "published"),
-      supabase.from("profiles").select("id", { count: "exact", head: true }),
       supabase.from("orders").select("total_amount").eq("payment_status", "paid"),
       supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("orders")
@@ -26,7 +27,7 @@ export async function GET() {
     stats: {
       totalOrders:    ordersRes.count    ?? 0,
       totalProducts:  productsRes.count  ?? 0,
-      totalCustomers: customersRes.count ?? 0,
+      totalCustomers: customerIds.size,
       totalRevenue,
       pendingOrders:  pendingRes.count   ?? 0,
     },
