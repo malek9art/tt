@@ -7,11 +7,12 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const { searchParams } = new URL(request.url);
-  const page   = Number(searchParams.get("page")   ?? 1);
-  const limit  = Number(searchParams.get("limit")  ?? 20);
-  const status = searchParams.get("status");
-  const search = searchParams.get("q");
-  const from   = (page - 1) * limit;
+  const page     = Number(searchParams.get("page")   ?? 1);
+  const limit    = Number(searchParams.get("limit")  ?? 20);
+  const status   = searchParams.get("status");
+  const search    = searchParams.get("q");
+  const category = searchParams.get("category");
+  const from     = (page - 1) * limit;
 
   let query = supabase
     .from("products")
@@ -25,8 +26,9 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
 
-  if (status) query = query.eq("status", status);
-  if (search) query = query.ilike("name_ar", `%${search}%`);
+  if (status)   query = query.eq("status", status);
+  if (search)   query = query.ilike("name_ar", `%${search}%`);
+  if (category) query = query.eq("category_id", category);
 
   const { data, count, error: dbErr } = await query;
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });

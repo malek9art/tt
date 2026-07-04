@@ -10,11 +10,15 @@ const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+interface ProductInfo {
+  name_ar: string; sku: string | null; category_id: string | null;
+  categories: { name_ar: string } | { name_ar: string }[] | null;
+}
 interface ProductVariantRow {
   id?:        string;
   sku:        string | null;
   attributes: Record<string, string>;
-  products:   { name_ar: string; sku: string | null } | { name_ar: string; sku: string | null }[] | null;
+  products:   ProductInfo | ProductInfo[] | null;
 }
 
 interface Movement {
@@ -61,6 +65,12 @@ function getProduct(pv: ProductVariantRow | null) {
   return Array.isArray(pv.products) ? pv.products[0] ?? null : pv.products;
 }
 
+function getCategoryName(prod: ProductInfo | null): string {
+  if (!prod?.categories) return "—";
+  const cat = Array.isArray(prod.categories) ? prod.categories[0] : prod.categories;
+  return cat?.name_ar ?? "—";
+}
+
 const EMPTY_QUICK = {
   name_ar: "", sku: "", base_price: "", compare_at_price: "",
   category_id: "", brand_id: "", condition: "new" as "new"|"used_certified",
@@ -89,13 +99,15 @@ export default function InventoryPage() {
   const [syncing,     setSyncing]     = useState(false);
   const setQ = (k: string, v: string) => { setQuickForm(f => ({ ...f, [k]: v })); setQuickError(""); };
 
+  const [categoryFilter, setCategoryFilter] = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
     const { data } = await sb
       .from("inventory")
       .select(`
         id, quantity, reserved_quantity, reorder_level, reorder_quantity, location,
-        product_variants(id, sku, attributes, products(name_ar, sku))
+        product_variants(id, sku, attributes, products(name_ar, sku, category_id, categories(name_ar)))
       `)
       .order("quantity", { ascending: true });
     setItems((data as InventoryItem[]) ?? []);
@@ -104,15 +116,14 @@ export default function InventoryPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // تحميل الفئات والماركات — تُستخدم في نافذة الإضافة السريعة وتلميح الاستيراد معاً
+  // تحميل الفئات والماركات — تُستخدم في فلتر المخزون ونافذة الإضافة السريعة وتلميح الاستيراد
   useEffect(() => {
-    if (!quickModal && !importModal) return;
-    if (categories.length) return;
     Promise.all([
       sb.from("categories").select("id,name_ar").eq("is_active", true).order("sort_order"),
       sb.from("brands").select("id,name").eq("is_active", true).order("sort_order"),
     ]).then(([{ data: c }, { data: b }]) => { setCategories(c ?? []); setBrands(b ?? []); });
-  }, [quickModal, importModal, categories.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const CATEGORY_HINT = categories.map(c => c.name_ar).join("، ");
 
@@ -166,10 +177,11 @@ export default function InventoryPage() {
   const filtered = items.filter(i => {
     if (filter === "low" && !(i.quantity > 0 && i.quantity <= i.reorder_level)) return false;
     if (filter === "out" && i.quantity !== 0) return false;
+    const pv   = getVariant(i);
+    const prod = getProduct(pv);
+    if (categoryFilter && prod?.category_id !== categoryFilter) return false;
     if (q) {
-      const pv   = getVariant(i);
-      const prod = getProduct(pv);
-      const hay  = `${prod?.name_ar ?? ""} ${pv?.sku ?? ""} ${prod?.sku ?? ""}`.toLowerCase();
+      const hay = `${prod?.name_ar ?? ""} ${pv?.sku ?? ""} ${prod?.sku ?? ""}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -292,6 +304,11 @@ export default function InventoryPage() {
               filter === v ? "bg-brand-700 text-white" : "border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300"
             }`}>{l}</button>
         ))}
+        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+          className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors">
+          <option value="">كل الفئات</option>
+          {categories.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
+        </select>
         <div className="relative mr-auto min-w-52 flex-1 sm:flex-none">
           <Search size={14} className="absolute top-1/2 -translate-y-1/2 end-3 text-[var(--text-muted)] pointer-events-none"/>
           <input type="search" value={search} onChange={e => setSearch(e.target.value)}
@@ -333,7 +350,7 @@ export default function InventoryPage() {
             <table className="w-full text-sm">
               <thead className="bg-[var(--bg-page)] border-b border-[var(--border)]">
                 <tr>
-                  {["المنتج","SKU","الكمية","محجوز","متاح","حد إعادة الطلب","الحالة"].map(h=>(
+                  {["المنتج","الفئة","SKU","الكمية","محجوز","متاح","حد إعادة الطلب","الحالة"].map(h=>(
                     <th key={h} className="px-4 py-3 text-right text-xs font-medium text-[var(--text-muted)] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -350,6 +367,7 @@ export default function InventoryPage() {
                   return (
                     <tr key={item.id} className="hover:bg-[var(--bg-page)] transition-colors">
                       <td className="px-4 py-3 font-medium text-[var(--text-1)] max-w-[180px] truncate">{name}</td>
+                      <td className="px-4 py-3 text-[var(--text-2)] whitespace-nowrap">{getCategoryName(prod)}</td>
                       <td className="px-4 py-3 text-[var(--text-muted)] font-mono text-xs" dir="ltr">{sku}</td>
                       <td className="px-4 py-3">
                         <input type="number" min="0"

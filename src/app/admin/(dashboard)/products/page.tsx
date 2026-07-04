@@ -2,7 +2,13 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { createBrowserClient } from "@supabase/ssr";
 import { Plus, Search, Filter, Edit, Trash2, Eye, MoreVertical, Package } from "lucide-react";
+
+const sb = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const STATUS_OPTS = [
   { value: "", label: "الكل" },
@@ -33,24 +39,32 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [total,    setTotal]    = useState(0);
   const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState("");
-  const [status,   setStatus]   = useState("");
-  const [page,     setPage]     = useState(1);
-  const [deleting, setDeleting] = useState<string|null>(null);
+  const [search,     setSearch]     = useState("");
+  const [status,     setStatus]     = useState("");
+  const [category,   setCategory]   = useState("");
+  const [categories, setCategories] = useState<{id:string;name_ar:string}[]>([]);
+  const [page,       setPage]       = useState(1);
+  const [deleting,   setDeleting]   = useState<string|null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     const q = new URLSearchParams({ page: String(page), limit: "15" });
-    if (status) q.set("status", status);
-    if (search) q.set("q", search);
+    if (status)   q.set("status", status);
+    if (search)   q.set("q", search);
+    if (category) q.set("category", category);
     const r = await fetch(`/api/admin/products?${q}`);
     const d = await r.json();
     setProducts(d.products ?? []);
     setTotal(d.total ?? 0);
     setLoading(false);
-  }, [page, status, search]);
+  }, [page, status, search, category]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    sb.from("categories").select("id,name_ar").eq("is_active", true).order("sort_order")
+      .then(({ data }) => setCategories(data ?? []));
+  }, []);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`هل تريد حذف "${name}"؟ لا يمكن التراجع.`)) return;
@@ -96,6 +110,11 @@ export default function AdminProductsPage() {
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] pe-9 px-3 py-2 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors" />
         </div>
+        <select value={category} onChange={e => { setCategory(e.target.value); setPage(1); }}
+          className="rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors">
+          <option value="">كل الفئات</option>
+          {categories.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
+        </select>
         <div className="flex items-center gap-2">
           <Filter size={14} className="text-[var(--text-muted)]" />
           <div className="flex gap-1">
