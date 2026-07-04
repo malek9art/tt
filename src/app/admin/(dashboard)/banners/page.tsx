@@ -28,6 +28,33 @@ const EMPTY: Omit<Banner, "id"> = {
   badge_text: "", sort_order: 0, is_active: true, starts_at: "", ends_at: "",
 };
 
+// حقول datetime-local تمثّل توقيت المستخدم المحلي بلا منطقة زمنية.
+// نحوّلها إلى ISO (UTC) عند الحفظ، ومن UTC إلى محلي عند التعديل — وإلا يظهر
+// البنر بفارق ساعات عن المطلوب (اليمن UTC+3).
+function localInputToIso(val?: string | null): string | null {
+  if (!val) return null;
+  const d = new Date(val); // يُفسَّر كتوقيت محلي
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+function isoToLocalInput(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+// الحالة الفعلية للبنر كما يراها العميل — تكشف سبب عدم الظهور
+function bannerStatus(b: Banner): { label: string; cls: string } {
+  if (!b.is_active) return { label: "متوقف", cls: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400" };
+  const now    = Date.now();
+  const starts = b.starts_at ? new Date(b.starts_at).getTime() : null;
+  const ends   = b.ends_at   ? new Date(b.ends_at).getTime()   : null;
+  if (starts && starts > now) return { label: "مجدول", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
+  if (ends   && ends   < now) return { label: "منتهي", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" };
+  return { label: "معروض الآن", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" };
+}
+
 export default function BannersPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +116,7 @@ export default function BannersPage() {
 
   const openEdit = (b: Banner) => {
     const { id, ...rest } = b;
-    setForm({ ...rest, starts_at: rest.starts_at?.slice(0,16) ?? "", ends_at: rest.ends_at?.slice(0,16) ?? "" });
+    setForm({ ...rest, starts_at: isoToLocalInput(rest.starts_at), ends_at: isoToLocalInput(rest.ends_at) });
     setEditId(id); setError(""); setImgMode("url");
     // إن كان الرابط الحالي يشير لمنتج نبقى في وضع البحث، وإلا وضع الرابط المخصص
     setLinkMode(b.link_url?.startsWith("/products/") ? "product" : "custom");
@@ -116,7 +143,13 @@ export default function BannersPage() {
     setSaving(true);
     const url    = editId ? `/api/admin/banners/${editId}` : "/api/admin/banners";
     const method = editId ? "PATCH" : "POST";
-    const res    = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    // نحوّل التوقيت المحلي إلى UTC حتى يظهر البنر في الوقت الصحيح
+    const payload = {
+      ...form,
+      starts_at: localInputToIso(form.starts_at),
+      ends_at:   localInputToIso(form.ends_at),
+    };
+    const res    = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const d      = await res.json();
     setSaving(false);
     if (!res.ok) { setError(d.error ?? "حدث خطأ"); return; }
@@ -194,11 +227,9 @@ export default function BannersPage() {
                       {b.badge_text}
                     </span>
                   )}
-                  <span className={`text-xs rounded-full px-2 py-0.5 ${
-                    b.is_active ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-500"
-                  }`}>
-                    {b.is_active ? "نشط" : "متوقف"}
-                  </span>
+                  {(() => { const st = bannerStatus(b); return (
+                    <span className={`text-xs rounded-full px-2 py-0.5 ${st.cls}`}>{st.label}</span>
+                  ); })()}
                 </div>
                 {b.subtitle && <p className="text-sm text-[var(--text-muted)] mt-1 truncate">{b.subtitle}</p>}
                 <div className="flex gap-3 mt-1 text-xs text-[var(--text-muted)]">
@@ -377,16 +408,21 @@ export default function BannersPage() {
                   </label>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-2)] mb-1">تاريخ البداية</label>
-                  <input type="datetime-local" value={form.starts_at || ""} onChange={e => F("starts_at", e.target.value)}
-                    className="input-base w-full"/>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-2)] mb-1">تاريخ الانتهاء</label>
-                  <input type="datetime-local" value={form.ends_at || ""} onChange={e => F("ends_at", e.target.value)}
-                    className="input-base w-full"/>
+              <div>
+                <p className="text-xs text-[var(--text-muted)] mb-1.5">
+                  جدولة الظهور (اختياري) — اتركها فارغة ليظهر البنر فوراً وباستمرار
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-2)] mb-1">تاريخ البداية</label>
+                    <input type="datetime-local" value={form.starts_at || ""} onChange={e => F("starts_at", e.target.value)}
+                      className="input-base w-full"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--text-2)] mb-1">تاريخ الانتهاء</label>
+                    <input type="datetime-local" value={form.ends_at || ""} onChange={e => F("ends_at", e.target.value)}
+                      className="input-base w-full"/>
+                  </div>
                 </div>
               </div>
             </div>
