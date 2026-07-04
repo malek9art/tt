@@ -6,6 +6,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { HiLockClosed, HiCheckCircle, HiEye, HiEyeSlash } from "react-icons/hi2";
+import { fetchUserPermissions } from "@/lib/admin/permission-tabs";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,11 +46,14 @@ export default function ResetPasswordPage() {
     const { error: err } = await supabase.auth.updateUser({ password });
 
     setLoading(false);
-    if (err) setError("تعذّر التحديث — افتح الرابط من البريد مجدداً");
-    else {
-      setDone(true);
-      setTimeout(() => router.replace("/login"), 2000);
-    }
+    if (err) { setError("تعذّر التحديث — افتح الرابط من البريد مجدداً"); return; }
+
+    setDone(true);
+    // موظف/مدير يعود للوحة الإدارة بدل صفحة دخول العملاء
+    const { data: { user } } = await supabase.auth.getUser();
+    const permissions = user ? await fetchUserPermissions(supabase, user.id) : new Set<string>();
+    const destination = permissions.size > 0 ? "/admin/login" : "/login";
+    setTimeout(() => router.replace(destination), 2000);
   };
 
   const iCls = "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";

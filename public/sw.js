@@ -1,7 +1,7 @@
 // Service worker بسيط — يُثبّت لتفعيل شرط "قابلية التثبيت" في المتصفحات (PWA)
 // ويخزّن الأصول الثابتة مؤقتاً لتسريع الزيارات المتكررة. لا يتدخل في طلبات
 // API أو صفحات Supabase حتى لا يُقدّم بيانات قديمة (أسعار، مخزون، طلبات).
-const CACHE = "ahmadi-store-v1";
+const CACHE = "ahmadi-store-v2";
 const PRECACHE_URLS = ["/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

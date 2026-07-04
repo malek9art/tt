@@ -1,14 +1,74 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuthStore } from "@/store/authStore";
-import { ArrowRight, KeyRound, Eye, EyeOff, Loader2, CheckCircle, ShieldCheck } from "lucide-react";
+import { ArrowRight, KeyRound, Eye, EyeOff, Loader2, CheckCircle, ShieldCheck, User, Save } from "lucide-react";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+function AccountInfoCard() {
+  const { user, profile, fetchProfile } = useAuthStore();
+  const [name,    setName]    = useState(profile?.full_name ?? "");
+  const [saving,  setSaving]  = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [error,   setError]   = useState("");
+
+  useEffect(() => { setName(profile?.full_name ?? ""); }, [profile?.full_name]);
+
+  const save = async () => {
+    if (!user) return;
+    const trimmed = name.trim();
+    if (!trimmed) { setError("الاسم مطلوب"); return; }
+    setSaving(true); setError(""); setSaved(false);
+    const { error: e } = await sb.from("profiles").update({ full_name: trimmed }).eq("id", user.id);
+    setSaving(false);
+    if (e) { setError(e.message); return; }
+    await fetchProfile(user.id);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  const iCls = "w-full rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
+
+  return (
+    <div className="card-base p-5 space-y-4">
+      <div className="flex items-center gap-3 border-b border-[var(--border)] pb-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-700">
+          <User size={18}/>
+        </div>
+        <div>
+          <h2 className="font-semibold text-[var(--text-1)]">بيانات الحساب</h2>
+          <p className="text-xs text-[var(--text-muted)]" dir="ltr">{user?.email}</p>
+        </div>
+      </div>
+
+      {saved && (
+        <div className="flex items-center gap-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+          <CheckCircle size={16}/> تم حفظ الاسم بنجاح
+        </div>
+      )}
+
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">الاسم الكامل</label>
+        <input type="text" value={name}
+          onChange={e => { setName(e.target.value); setError(""); }}
+          onKeyDown={e => e.key === "Enter" && save()}
+          className={iCls}/>
+      </div>
+
+      {error && <p className="text-sm text-red-500">⚠ {error}</p>}
+
+      <button onClick={save} disabled={saving || !name.trim()}
+        className="btn-primary gap-2 disabled:opacity-50">
+        {saving ? <><Loader2 size={15} className="animate-spin"/> جارٍ الحفظ...</> : <><Save size={15}/> حفظ الاسم</>}
+      </button>
+    </div>
+  );
+}
 
 export default function SecuritySettingsPage() {
   const { user } = useAuthStore();
@@ -61,10 +121,12 @@ export default function SecuritySettingsPage() {
           <ArrowRight size={16}/>
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-[var(--text-1)]">الأمان</h1>
-          <p className="text-xs text-[var(--text-muted)]">إدارة كلمة مرور حسابك</p>
+          <h1 className="text-xl font-bold text-[var(--text-1)]">حسابي</h1>
+          <p className="text-xs text-[var(--text-muted)]">بيانات الحساب وكلمة المرور</p>
         </div>
       </div>
+
+      <AccountInfoCard/>
 
       <div className="card-base p-5 space-y-4">
         <div className="flex items-center gap-3 border-b border-[var(--border)] pb-4">

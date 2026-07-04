@@ -5,6 +5,7 @@ import CartDrawer from "@/components/cart/CartDrawer";
 import AuthProvider from "@/components/auth/AuthProvider";
 import ToastContainer from "@/components/ui/Toast";
 import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
 import "./globals.css";
 
 const fontArabic = IBM_Plex_Sans_Arabic({
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <CartDrawer />
             <ToastContainer />
             <ServiceWorkerRegister />
+            <InstallPrompt />
           </AuthProvider>
         </ThemeProvider>
       </body>
