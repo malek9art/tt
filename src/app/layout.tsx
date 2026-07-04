@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import CartDrawer from "@/components/cart/CartDrawer";
 import AuthProvider from "@/components/auth/AuthProvider";
 import ToastContainer from "@/components/ui/Toast";
+import ServiceWorkerRegister from "@/components/pwa/ServiceWorkerRegister";
 import "./globals.css";
 
 const fontArabic = IBM_Plex_Sans_Arabic({
@@ -19,6 +20,12 @@ export const metadata: Metadata = {
   description: "أفضل متجر إلكتروني للجوالات والإكسسوارات في اليمن — تعز.",
   keywords: ["جوالات", "هواتف", "اليمن", "تعز", "إكسسوارات"],
   openGraph: { type: "website", locale: "ar_YE", siteName: "مركز الأحمدي للجوالات" },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "مركز الأحمدي",
+  },
 };
 
 export const viewport: Viewport = {
@@ -38,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
             <CartDrawer />
             <ToastContainer />
+            <ServiceWorkerRegister />
           </AuthProvider>
         </ThemeProvider>
       </body>

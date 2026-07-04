@@ -75,7 +75,7 @@ export default function InventoryPage() {
   const [search,       setSearch]       = useState("");
   const [importing,    setImporting]    = useState(false);
   const [importModal,  setImportModal]  = useState(false);
-  const [importResult, setImportResult] = useState<{ updated:number; skipped:number; errors:string[]; message:string } | null>(null);
+  const [importResult, setImportResult] = useState<{ created:number; updated:number; skipped:number; errors:string[]; message:string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // إضافة منتج سريعة
@@ -104,14 +104,17 @@ export default function InventoryPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // تحميل الفئات والماركات عند أول فتح لنافذة الإضافة
+  // تحميل الفئات والماركات — تُستخدم في نافذة الإضافة السريعة وتلميح الاستيراد معاً
   useEffect(() => {
-    if (!quickModal || categories.length) return;
+    if (!quickModal && !importModal) return;
+    if (categories.length) return;
     Promise.all([
       sb.from("categories").select("id,name_ar").eq("is_active", true).order("sort_order"),
       sb.from("brands").select("id,name").eq("is_active", true).order("sort_order"),
     ]).then(([{ data: c }, { data: b }]) => { setCategories(c ?? []); setBrands(b ?? []); });
-  }, [quickModal, categories.length]);
+  }, [quickModal, importModal, categories.length]);
+
+  const CATEGORY_HINT = categories.map(c => c.name_ar).join("، ");
 
   const openQuickAdd = () => {
     setQuickForm(EMPTY_QUICK); setQuickError(""); setQuickDone(null); setQuickModal(true);
@@ -558,7 +561,7 @@ export default function InventoryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-xl">
             <div className="flex items-center justify-between p-6 pb-4 shrink-0">
-              <h2 className="font-bold text-[var(--text-1)]">استيراد المخزون من Excel</h2>
+              <h2 className="font-bold text-[var(--text-1)]">استيراد/إنشاء منتجات من Excel</h2>
               <button onClick={() => setImportModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
                 <X size={18}/>
               </button>
@@ -567,11 +570,12 @@ export default function InventoryPage() {
             <div className="overflow-y-auto px-6 space-y-4">
               <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
                 <p className="font-semibold">تعليمات الاستيراد:</p>
-                <p>• يجب أن يحتوي الملف على عمود <strong>SKU</strong></p>
-                <p>• الأعمدة المدعومة: الكمية، الموقع، حد إعادة الطلب، كمية إعادة الطلب</p>
+                <p>• اترك <strong>SKU</strong> فارغاً لإنشاء منتج جديد كامل — أو ضع SKU منتج موجود لتحديث كل بياناته</p>
+                <p>• الأعمدة: اسم المنتج، الاسم الإنجليزي، SKU، الوصف، الفئة، العلامة التجارية، السعر، السعر قبل الخصم، الحالة، حالة النشر، النوع، الضمان، الوسوم، الكمية، حد إعادة الطلب، كمية إعادة الطلب، الموقع</p>
+                <p>• عمود <strong>الفئة</strong> يجب أن يطابق أحد الأسماء التالية بالضبط: {CATEGORY_HINT}</p>
+                <p>• الوسوم المتعددة داخل الخلية الواحدة تُفصل بفاصلة منقوطة (؛)</p>
                 <p>• صيغ مقبولة: CSV أو XLSX (محوّل لـ CSV)</p>
-                <p>• <a href="/api/admin/inventory/template" className="underline font-semibold">📥 حمّل قالب الإكسل الجاهز</a> — عدّل الكميات ثم استورده</p>
-                <p>• أو <a href="/api/admin/inventory/export" className="underline">حمّل ملف التصدير الكامل</a> كنموذج</p>
+                <p>• <a href="/api/admin/inventory/template" className="underline font-semibold">📥 حمّل قالب جاهز بأمثلة</a> — أو <a href="/api/admin/inventory/export" className="underline font-semibold">📤 صدّر كل منتجاتك الحالية</a> لتعديلها جماعياً ثم إعادة رفعها</p>
               </div>
 
               <div
@@ -597,8 +601,9 @@ export default function InventoryPage() {
                     : "bg-green-50 dark:bg-green-900/20 border border-green-200 text-green-700 dark:text-green-300"
                 }`}>
                   <p className="font-semibold">{importResult.message}</p>
-                  <p>✓ تم تحديث {importResult.updated} صنف</p>
-                  {importResult.skipped > 0 && <p>↷ تم تخطي {importResult.skipped} صنف (SKU غير موجود)</p>}
+                  {importResult.created > 0 && <p>✓ أُنشئ {importResult.created} منتج جديد</p>}
+                  {importResult.updated > 0 && <p>✓ تم تحديث {importResult.updated} منتج</p>}
+                  {importResult.skipped > 0 && <p>↷ تم تخطي {importResult.skipped} صنف</p>}
                   {importResult.errors?.map((e, i) => (
                     <p key={i} className="text-xs opacity-80">⚠ {e}</p>
                   ))}

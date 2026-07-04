@@ -1,51 +1,52 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { buildCsv } from "@/lib/admin/csv";
+import { CSV_HEADERS, productToRow, type JoinedProductForExport } from "@/lib/admin/product-csv";
 
-export async function GET(request: NextRequest) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toRow(p: any): JoinedProductForExport {
+  const cat  = Array.isArray(p.categories) ? p.categories[0] : p.categories;
+  const brand = Array.isArray(p.brands) ? p.brands[0] : p.brands;
+  const variants = (p.product_variants as Array<{ sku: string|null; compare_at_price: number|null; inventory: unknown }>) ?? [];
+  const variant = variants[0];
+  const invRaw = variant?.inventory as { quantity:number; reorder_level:number; reorder_quantity:number; location:string|null }[] | { quantity:number; reorder_level:number; reorder_quantity:number; location:string|null } | null;
+  const inv = Array.isArray(invRaw) ? invRaw[0] : invRaw;
+
+  return {
+    name_ar: p.name_ar, name_en: p.name_en, description: p.description,
+    base_price: Number(p.base_price), condition: p.condition, status: p.status, type: p.type,
+    warranty: p.warranty, tags: p.tags,
+    category_name: cat?.name_ar ?? null, brand_name: brand?.name ?? null,
+    variant_sku: variant?.sku ?? null, compare_at_price: variant?.compare_at_price ?? null,
+    quantity: inv?.quantity ?? null, reorder_level: inv?.reorder_level ?? null,
+    reorder_quantity: inv?.reorder_quantity ?? null, location: inv?.location ?? null,
+  };
+}
+
+// GET — تصدير كامل لكل المنتجات بكل حقولها (السعر، الفئة، الوصف، المخزون...)
+// بنفس تنسيق الاستيراد تماماً، فيصلح كنسخة احتياطية أو كملف تعديل جماعي يُعاد رفعه
+export async function GET() {
   const { error, supabase } = await requireAdmin("products:read");
   if (error) return error;
 
   const { data, error: dbErr } = await supabase
-    .from("inventory")
+    .from("products")
     .select(`
-      id, quantity, reserved_quantity, reorder_level, reorder_quantity, location,
-      product_variants(sku, attributes, products(name_ar, sku))
+      name_ar, name_en, description, base_price, condition, status, type, warranty, tags,
+      categories(name_ar), brands(name),
+      product_variants(sku, compare_at_price, inventory(quantity, reorder_level, reorder_quantity, location))
     `)
-    .order("quantity", { ascending: true });
+    .order("created_at", { ascending: true });
 
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 });
 
-  // Build CSV
-  const headers = ["المنتج", "SKU", "الكمية", "محجوز", "متاح", "حد إعادة الطلب", "كمية إعادة الطلب", "الموقع", "الحالة"];
+  const rows = (data ?? []).map(p => productToRow(toRow(p)));
+  const csv  = buildCsv([...CSV_HEADERS], rows);
 
-  const rows = (data ?? []).map((item: any) => {
-    const pv   = Array.isArray(item.product_variants) ? item.product_variants[0] : item.product_variants;
-    const prod = pv ? (Array.isArray(pv.products) ? pv.products[0] : pv.products) : null;
-    const name = prod?.name_ar ?? "";
-    const sku  = pv?.sku ?? prod?.sku ?? "";
-    const avail = item.quantity - item.reserved_quantity;
-    const status = item.quantity === 0 ? "نفد" : item.quantity <= item.reorder_level ? "منخفض" : "متوفر";
-
-    return [
-      `"${name}"`,
-      sku,
-      item.quantity,
-      item.reserved_quantity,
-      avail,
-      item.reorder_level,
-      item.reorder_quantity,
-      item.location ?? "",
-      status,
-    ].join(",");
-  });
-
-  const csv = [headers.join(","), ...rows].join("\n");
-  const bom  = "﻿"; // UTF-8 BOM for Excel Arabic support
-
-  return new NextResponse(bom + csv, {
+  return new NextResponse(csv, {
     headers: {
       "Content-Type":        "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="inventory-${new Date().toISOString().slice(0,10)}.csv"`,
+      "Content-Disposition": `attachment; filename="products-${new Date().toISOString().slice(0,10)}.csv"`,
     },
   });
 }
