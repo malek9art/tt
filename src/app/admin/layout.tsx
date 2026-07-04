@@ -3,6 +3,12 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: { default: "لوحة الإدارة", template: "%s | مركز الأحمدي - الإدارة" },
   robots: { index: false, follow: false },
+  manifest: "/manifest-admin.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "الإدارة",
+  },
 };
 
 // هذا الـ layout يُغلّف كل /admin/*
