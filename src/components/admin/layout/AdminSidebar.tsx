@@ -1,32 +1,44 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 import {
   HiSquares2X2, HiArchiveBox, HiShoppingBag, HiUsers,
   HiBuildingStorefront, HiTag, HiChartBar, HiTruck,
   HiCog6Tooth, HiChevronLeft, HiXMark, HiBars3, HiPhoto,
-  HiBell, HiBanknotes,
+  HiBell, HiBanknotes, HiUserGroup,
 } from "react-icons/hi2";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ADMIN_TABS, hasAnyPermission, fetchUserPermissions } from "@/lib/admin/permission-tabs";
 
-const NAV = [
-  { href:"/admin",              label:"لوحة التحكم",    icon:HiSquares2X2,        exact:true },
-  { href:"/admin/products",     label:"المنتجات",        icon:HiArchiveBox },
-  { href:"/admin/orders",       label:"الطلبات",         icon:HiShoppingBag },
-  { href:"/admin/payments",     label:"المدفوعات",       icon:HiBanknotes },
-  { href:"/admin/customers",    label:"العملاء",         icon:HiUsers },
-  { href:"/admin/inventory",    label:"المخزون",         icon:HiBuildingStorefront },
-  { href:"/admin/analytics",    label:"التحليلات",       icon:HiChartBar },
-  { href:"/admin/marketing",    label:"التسويق والكوبونات",icon:HiTag },
-  { href:"/admin/banners",      label:"البنرات الإعلانية",icon:HiPhoto },
-  { href:"/admin/notifications",label:"الإشعارات",       icon:HiBell },
-  { href:"/admin/drivers",      label:"المناديب",        icon:HiTruck },
-  { href:"/admin/settings",     label:"الإعدادات",       icon:HiCog6Tooth },
-];
+const ICONS: Record<string, React.ElementType> = {
+  dashboard: HiSquares2X2, products: HiArchiveBox, orders: HiShoppingBag,
+  payments: HiBanknotes, customers: HiUsers, inventory: HiBuildingStorefront,
+  analytics: HiChartBar, marketing: HiTag, banners: HiPhoto,
+  notifications: HiBell, drivers: HiTruck, settings: HiCog6Tooth, users: HiUserGroup,
+};
+
+const sb = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // null = لا تزال الصلاحيات قيد التحميل — نعرض كل التبويبات مؤقتاً لتفادي وميض فارغ
+  const [granted, setGranted] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    sb.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setGranted(await fetchUserPermissions(sb, user.id));
+    });
+  }, []);
+
+  const visibleTabs = granted
+    ? ADMIN_TABS.filter(t => hasAnyPermission(granted, t.permissions))
+    : ADMIN_TABS;
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href);
@@ -45,8 +57,10 @@ export default function AdminSidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-        {NAV.map(({ href, label, icon:Icon, exact }) => {
+        {visibleTabs.map(({ key, href, label }) => {
+          const exact  = key === "dashboard";
           const active = isActive(href, exact);
+          const Icon   = ICONS[key] ?? HiSquares2X2;
           return (
             <Link key={href} href={href} onClick={() => setOpen(false)}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${

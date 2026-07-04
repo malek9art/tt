@@ -8,7 +8,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin("orders:manage");
+  const auth = await requireAdmin("finance:manage");
   if (auth.error) return auth.error;
 
   const { id } = await params;

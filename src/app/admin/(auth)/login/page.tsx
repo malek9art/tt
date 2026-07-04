@@ -3,6 +3,7 @@ import { useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { fetchUserPermissions } from "@/lib/admin/permission-tabs";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -37,8 +38,9 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // 2. التحقق من الصلاحيات باستخدام access_token مباشرة
-    // نُنشئ client بالـ token الجديد صراحةً
+    // 2. التحقق من الصلاحيات — أي مستخدم يملك صلاحية واحدة فعلية (عبر دوره
+    // أو عبر منح مباشر من شاشة إدارة المستخدمين) يُسمح له بالدخول؛ التبويبات
+    // التي يراها بعد الدخول تُفلتَر لاحقاً حسب صلاحياته بالضبط
     const authedSupabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -51,29 +53,8 @@ export default function AdminLoginPage() {
       }
     );
 
-    const { data: isAdmin, error: rpcErr } = await authedSupabase.rpc(
-      "has_permission",
-      { _user_id: data.user.id, _perm: "products:read" }
-    );
-
-    if (rpcErr) {
-      console.error("RPC error:", rpcErr);
-      // في حالة فشل الـ RPC، نتحقق من الدور مباشرة
-      const { data: roleData } = await authedSupabase
-        .from("user_roles")
-        .select("roles(name)")
-        .eq("user_id", data.user.id)
-        .limit(1)
-        .single();
-
-      const roleName = (roleData?.roles as { name?: string } | null)?.name;
-      if (!roleName || !["super_admin","admin","manager"].includes(roleName)) {
-        await supabase.auth.signOut();
-        setError("ليس لديك صلاحيات الدخول للوحة الإدارة");
-        setLoading(false);
-        return;
-      }
-    } else if (!isAdmin) {
+    const permissions = await fetchUserPermissions(authedSupabase, data.user.id);
+    if (permissions.size === 0) {
       await supabase.auth.signOut();
       setError("ليس لديك صلاحيات الدخول للوحة الإدارة");
       setLoading(false);

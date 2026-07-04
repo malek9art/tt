@@ -12,7 +12,7 @@ function sb() {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin("orders:read");
+  const auth = await requireAdmin("finance:read");
   if (auth.error) return auth.error;
 
   const url    = new URL(request.url);

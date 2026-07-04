@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
-  const { error, supabase } = await requireAdmin("customers:read");
+  const { error, supabase } = await requireAdmin("users:read");
   if (error) return error;
 
   const { searchParams } = new URL(request.url);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { error, supabase } = await requireAdmin("customers:read");
+  const { error, supabase } = await requireAdmin("users:read");
   if (error) return error;
   const { id } = await params;
 

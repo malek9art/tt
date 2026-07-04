@@ -14,7 +14,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin("orders:read");
+  const auth = await requireAdmin("finance:read");
   if (auth.error) return auth.error;
 
   const { id } = await params;
