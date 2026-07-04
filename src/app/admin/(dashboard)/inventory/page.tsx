@@ -424,9 +424,9 @@ export default function InventoryPage() {
 
       {/* Quick Add Product Modal */}
       {quickModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto">
-          <div className="w-full max-w-lg my-8 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-xl">
+            <div className="flex items-center justify-between p-6 pb-4 shrink-0">
               <h2 className="font-bold text-[var(--text-1)] flex items-center gap-2">
                 <Plus size={18} className="text-brand-700"/> إضافة منتج سريعة
               </h2>
@@ -436,115 +436,119 @@ export default function InventoryPage() {
               </button>
             </div>
 
-            {quickDone && (
-              <div className="flex items-center justify-between gap-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
-                <span>✓ أُضيف المنتج السابق (SKU: <b dir="ltr">{quickDone.sku}</b>)</span>
-                <Link href={`/admin/products/${quickDone.product_id}`} target="_blank"
-                  className="flex items-center gap-1 text-xs font-semibold underline shrink-0">
-                  أضف صوراً <ExternalLink size={11}/>
-                </Link>
-              </div>
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">اسم المنتج *</label>
-                <input type="text" value={quickForm.name_ar} autoFocus
-                  placeholder="مثال: iPhone 17 Pro Max 256GB"
-                  onChange={e => setQ("name_ar", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">السعر (﷼) *</label>
-                <input type="number" min="0" dir="ltr" value={quickForm.base_price}
-                  onChange={e => setQ("base_price", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">السعر قبل الخصم</label>
-                <input type="number" min="0" dir="ltr" value={quickForm.compare_at_price}
-                  placeholder="اختياري"
-                  onChange={e => setQ("compare_at_price", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">SKU</label>
-                <input type="text" dir="ltr" value={quickForm.sku}
-                  placeholder="يولَّد تلقائياً إن تُرك فارغاً"
-                  onChange={e => setQ("sku", e.target.value.toUpperCase())}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm font-mono text-[var(--text-1)] outline-none focus:border-brand-500"/>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الفئة</label>
-                <select value={quickForm.category_id} onChange={e => setQ("category_id", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
-                  <option value="">بدون فئة</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الماركة</label>
-                <select value={quickForm.brand_id} onChange={e => setQ("brand_id", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
-                  <option value="">بدون ماركة</option>
-                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الحالة</label>
-                <select value={quickForm.condition} onChange={e => setQ("condition", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
-                  <option value="new">جديد</option>
-                  <option value="used_certified">مستعمل مفحوص</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الكمية الابتدائية</label>
-                <input type="number" min="0" dir="ltr" value={quickForm.quantity}
-                  onChange={e => setQ("quantity", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">حد إعادة الطلب</label>
-                <input type="number" min="0" dir="ltr" value={quickForm.reorder_level}
-                  onChange={e => setQ("reorder_level", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">موقع التخزين</label>
-                <input type="text" value={quickForm.location}
-                  placeholder="رف A3، الدرج 2..."
-                  onChange={e => setQ("location", e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
-              </div>
-              <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-[var(--border)] px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-1)]">نشر مباشرة في المتجر</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">أوقفه ليُحفظ كمسودة تكملها لاحقاً بالصور والتفاصيل</p>
+            <div className="overflow-y-auto px-6 space-y-4">
+              {quickDone && (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-2.5 text-sm text-green-700 dark:text-green-400">
+                  <span>✓ أُضيف المنتج السابق (SKU: <b dir="ltr">{quickDone.sku}</b>)</span>
+                  <Link href={`/admin/products/${quickDone.product_id}`} target="_blank"
+                    className="flex items-center gap-1 text-xs font-semibold underline shrink-0">
+                    أضف صوراً <ExternalLink size={11}/>
+                  </Link>
                 </div>
-                <button type="button" role="switch" aria-checked={quickForm.status === "published"}
-                  onClick={() => setQ("status", quickForm.status === "published" ? "draft" : "published")}
-                  className={`relative h-6 w-11 rounded-full transition-colors ${quickForm.status === "published" ? "bg-brand-700" : "bg-[var(--border)]"}`}>
-                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${quickForm.status === "published" ? "start-0.5" : "start-[22px]"}`}/>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">اسم المنتج *</label>
+                  <input type="text" value={quickForm.name_ar} autoFocus
+                    placeholder="مثال: iPhone 17 Pro Max 256GB"
+                    onChange={e => setQ("name_ar", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">السعر (﷼) *</label>
+                  <input type="number" min="0" dir="ltr" value={quickForm.base_price}
+                    onChange={e => setQ("base_price", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">السعر قبل الخصم</label>
+                  <input type="number" min="0" dir="ltr" value={quickForm.compare_at_price}
+                    placeholder="اختياري"
+                    onChange={e => setQ("compare_at_price", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">SKU</label>
+                  <input type="text" dir="ltr" value={quickForm.sku}
+                    placeholder="يولَّد تلقائياً إن تُرك فارغاً"
+                    onChange={e => setQ("sku", e.target.value.toUpperCase())}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm font-mono text-[var(--text-1)] outline-none focus:border-brand-500"/>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الفئة</label>
+                  <select value={quickForm.category_id} onChange={e => setQ("category_id", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
+                    <option value="">بدون فئة</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الماركة</label>
+                  <select value={quickForm.brand_id} onChange={e => setQ("brand_id", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
+                    <option value="">بدون ماركة</option>
+                    {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الحالة</label>
+                  <select value={quickForm.condition} onChange={e => setQ("condition", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500">
+                    <option value="new">جديد</option>
+                    <option value="used_certified">مستعمل مفحوص</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">الكمية الابتدائية</label>
+                  <input type="number" min="0" dir="ltr" value={quickForm.quantity}
+                    onChange={e => setQ("quantity", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">حد إعادة الطلب</label>
+                  <input type="number" min="0" dir="ltr" value={quickForm.reorder_level}
+                    onChange={e => setQ("reorder_level", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">موقع التخزين</label>
+                  <input type="text" value={quickForm.location}
+                    placeholder="رف A3، الدرج 2..."
+                    onChange={e => setQ("location", e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500"/>
+                </div>
+                <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-[var(--border)] px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--text-1)]">نشر مباشرة في المتجر</p>
+                    <p className="text-[11px] text-[var(--text-muted)]">أوقفه ليُحفظ كمسودة تكملها لاحقاً بالصور والتفاصيل</p>
+                  </div>
+                  <button type="button" role="switch" aria-checked={quickForm.status === "published"}
+                    onClick={() => setQ("status", quickForm.status === "published" ? "draft" : "published")}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${quickForm.status === "published" ? "bg-brand-700" : "bg-[var(--border)]"}`}>
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${quickForm.status === "published" ? "start-0.5" : "start-[22px]"}`}/>
+                  </button>
+                </div>
+              </div>
+
+              {quickError && <p className="text-sm text-red-500">⚠ {quickError}</p>}
+            </div>
+
+            <div className="p-6 pt-4 shrink-0 space-y-3">
+              <div className="flex gap-2">
+                <button onClick={() => submitQuickAdd(false)} disabled={quickSaving || !quickForm.name_ar || !quickForm.base_price}
+                  className="btn-primary flex-1 justify-center gap-2 disabled:opacity-50">
+                  {quickSaving ? <><Loader2 size={14} className="animate-spin"/> جارٍ الحفظ...</> : "حفظ وإغلاق"}
+                </button>
+                <button onClick={() => submitQuickAdd(true)} disabled={quickSaving || !quickForm.name_ar || !quickForm.base_price}
+                  className="btn-ghost border border-[var(--border)] flex-1 justify-center disabled:opacity-50">
+                  حفظ وإضافة آخر
                 </button>
               </div>
+              <p className="text-[11px] text-[var(--text-muted)] text-center">
+                لإضافة صور وخيارات (ألوان/سعات) افتح المنتج من صفحة المنتجات بعد الحفظ
+              </p>
             </div>
-
-            {quickError && <p className="text-sm text-red-500">⚠ {quickError}</p>}
-
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => submitQuickAdd(false)} disabled={quickSaving || !quickForm.name_ar || !quickForm.base_price}
-                className="btn-primary flex-1 justify-center gap-2 disabled:opacity-50">
-                {quickSaving ? <><Loader2 size={14} className="animate-spin"/> جارٍ الحفظ...</> : "حفظ وإغلاق"}
-              </button>
-              <button onClick={() => submitQuickAdd(true)} disabled={quickSaving || !quickForm.name_ar || !quickForm.base_price}
-                className="btn-ghost border border-[var(--border)] flex-1 justify-center disabled:opacity-50">
-                حفظ وإضافة آخر
-              </button>
-            </div>
-            <p className="text-[11px] text-[var(--text-muted)] text-center">
-              لإضافة صور وخيارات (ألوان/سعات) افتح المنتج من صفحة المنتجات بعد الحفظ
-            </p>
           </div>
         </div>
       )}
@@ -552,55 +556,57 @@ export default function InventoryPage() {
       {/* Import Modal */}
       {importModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] p-6 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between">
+          <div className="w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-xl">
+            <div className="flex items-center justify-between p-6 pb-4 shrink-0">
               <h2 className="font-bold text-[var(--text-1)]">استيراد المخزون من Excel</h2>
               <button onClick={() => setImportModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-1)]">
                 <X size={18}/>
               </button>
             </div>
 
-            <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
-              <p className="font-semibold">تعليمات الاستيراد:</p>
-              <p>• يجب أن يحتوي الملف على عمود <strong>SKU</strong></p>
-              <p>• الأعمدة المدعومة: الكمية، الموقع، حد إعادة الطلب، كمية إعادة الطلب</p>
-              <p>• صيغ مقبولة: CSV أو XLSX (محوّل لـ CSV)</p>
-              <p>• <a href="/api/admin/inventory/template" className="underline font-semibold">📥 حمّل قالب الإكسل الجاهز</a> — عدّل الكميات ثم استورده</p>
-              <p>• أو <a href="/api/admin/inventory/export" className="underline">حمّل ملف التصدير الكامل</a> كنموذج</p>
-            </div>
-
-            <div
-              onClick={() => fileRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--border)] p-8 cursor-pointer hover:border-brand-500 transition-colors">
-              <Upload size={28} className="text-[var(--text-muted)]"/>
-              <p className="text-sm text-[var(--text-muted)]">انقر لاختيار ملف CSV</p>
-              <input ref={fileRef} type="file" accept=".csv,text/csv"
-                className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); }}/>
-            </div>
-
-            {importing && (
-              <p className="text-center text-sm text-[var(--text-muted)]">
-                <span className="animate-spin inline-block mr-1">⏳</span> جارٍ الاستيراد...
-              </p>
-            )}
-
-            {importResult && (
-              <div className={`rounded-xl p-3 text-sm space-y-1 ${
-                importResult.errors?.length
-                  ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-amber-700 dark:text-amber-300"
-                  : "bg-green-50 dark:bg-green-900/20 border border-green-200 text-green-700 dark:text-green-300"
-              }`}>
-                <p className="font-semibold">{importResult.message}</p>
-                <p>✓ تم تحديث {importResult.updated} صنف</p>
-                {importResult.skipped > 0 && <p>↷ تم تخطي {importResult.skipped} صنف (SKU غير موجود)</p>}
-                {importResult.errors?.map((e, i) => (
-                  <p key={i} className="text-xs opacity-80">⚠ {e}</p>
-                ))}
+            <div className="overflow-y-auto px-6 space-y-4">
+              <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                <p className="font-semibold">تعليمات الاستيراد:</p>
+                <p>• يجب أن يحتوي الملف على عمود <strong>SKU</strong></p>
+                <p>• الأعمدة المدعومة: الكمية، الموقع، حد إعادة الطلب، كمية إعادة الطلب</p>
+                <p>• صيغ مقبولة: CSV أو XLSX (محوّل لـ CSV)</p>
+                <p>• <a href="/api/admin/inventory/template" className="underline font-semibold">📥 حمّل قالب الإكسل الجاهز</a> — عدّل الكميات ثم استورده</p>
+                <p>• أو <a href="/api/admin/inventory/export" className="underline">حمّل ملف التصدير الكامل</a> كنموذج</p>
               </div>
-            )}
 
-            <div className="flex gap-2 justify-end">
+              <div
+                onClick={() => fileRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--border)] p-8 cursor-pointer hover:border-brand-500 transition-colors">
+                <Upload size={28} className="text-[var(--text-muted)]"/>
+                <p className="text-sm text-[var(--text-muted)]">انقر لاختيار ملف CSV</p>
+                <input ref={fileRef} type="file" accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); }}/>
+              </div>
+
+              {importing && (
+                <p className="text-center text-sm text-[var(--text-muted)]">
+                  <span className="animate-spin inline-block mr-1">⏳</span> جارٍ الاستيراد...
+                </p>
+              )}
+
+              {importResult && (
+                <div className={`rounded-xl p-3 text-sm space-y-1 ${
+                  importResult.errors?.length
+                    ? "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 text-amber-700 dark:text-amber-300"
+                    : "bg-green-50 dark:bg-green-900/20 border border-green-200 text-green-700 dark:text-green-300"
+                }`}>
+                  <p className="font-semibold">{importResult.message}</p>
+                  <p>✓ تم تحديث {importResult.updated} صنف</p>
+                  {importResult.skipped > 0 && <p>↷ تم تخطي {importResult.skipped} صنف (SKU غير موجود)</p>}
+                  {importResult.errors?.map((e, i) => (
+                    <p key={i} className="text-xs opacity-80">⚠ {e}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end p-6 pt-4 shrink-0">
               <button onClick={() => setImportModal(false)}
                 className="btn-ghost border border-[var(--border)] text-sm px-4 py-2 rounded-lg">
                 إغلاق

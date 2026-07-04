@@ -19,6 +19,7 @@ const NAV = [
   { href: "/products?cat=smartphones",label: "هواتف"       },
   { href: "/products?cat=accessories",label: "إكسسوارات"  },
   { href: "/products?cat=spare-parts",label: "قطع الغيار" },
+  { href: "/products?cat=repair-services", label: "صيانة" },
 ];
 
 export default function Header() {

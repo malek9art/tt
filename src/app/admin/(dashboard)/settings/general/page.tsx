@@ -2,10 +2,11 @@
 import { useState, useEffect, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Save, Loader2, CheckCircle, Upload, Store,
   Phone, Mail, MapPin, Globe, Instagram,
-  MessageSquare, Clock, Trash2
+  MessageSquare, Clock, Trash2, ArrowRight
 } from "lucide-react";
 
 const sb = createBrowserClient(
@@ -126,9 +127,15 @@ export default function GeneralSettingsPage() {
     <div className="space-y-6 max-w-2xl">
       {/* رأس الصفحة */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">الإعدادات العامة</h1>
-          <p className="text-sm text-[var(--text-muted)]">بيانات المتجر ومعلومات التواصل</p>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/settings"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
+            <ArrowRight size={16}/>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--text-1)]">الإعدادات العامة</h1>
+            <p className="text-sm text-[var(--text-muted)]">بيانات المتجر ومعلومات التواصل</p>
+          </div>
         </div>
         <button
           onClick={handleSave}

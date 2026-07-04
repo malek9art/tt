@@ -2,8 +2,6 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
 import Link from "next/link";
 import { Package, MapPin, User, LogOut, ChevronLeft, ShieldCheck } from "lucide-react";
 
@@ -26,27 +24,26 @@ export default function AccountPage() {
   const initial = profile?.full_name?.[0] ?? user.phone?.[3] ?? "م";
 
   return (
-    <div className="min-h-screen">
-      <Header />
-      <div className="container-main py-8 max-w-2xl">
-        {/* بطاقة المستخدم */}
-        <div className="card-base mb-6 p-5 flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-700 text-2xl font-bold text-white shadow">
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
-              : initial}
-          </div>
-          <div className="min-w-0">
-            <p className="font-bold text-[var(--text-1)] text-lg leading-tight">
-              {profile?.full_name || "مستخدم الأحمدي"}
-            </p>
-            <p className="text-sm text-[var(--text-muted)]" dir="ltr">{user.phone}</p>
-          </div>
-          <ShieldCheck size={20} className="mr-auto shrink-0 text-green-500" />
+    <div className="space-y-5">
+      {/* بطاقة المستخدم */}
+      <div className="card-base p-5 flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-700 text-2xl font-bold text-white shadow">
+          {profile?.avatar_url
+            ? <img src={profile.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
+            : initial}
         </div>
+        <div className="min-w-0">
+          <p className="font-bold text-[var(--text-1)] text-lg leading-tight">
+            {profile?.full_name || "مستخدم الأحمدي"}
+          </p>
+          <p className="text-sm text-[var(--text-muted)]" dir="ltr">{user.phone}</p>
+        </div>
+        <ShieldCheck size={20} className="mr-auto shrink-0 text-green-500" />
+      </div>
 
-        {/* روابط الحساب */}
-        <h2 className="section-title mb-4">إدارة الحساب</h2>
+      {/* روابط الحساب */}
+      <div>
+        <h1 className="text-xl font-bold text-[var(--text-1)] mb-4">إدارة الحساب</h1>
         <div className="space-y-2">
           {[
             { href: "/account/orders",    icon: Package, title: "طلباتي",         desc: "تتبع وعرض كل طلباتك",     color: "bg-blue-50 dark:bg-blue-900/20 text-blue-600" },
@@ -80,7 +77,6 @@ export default function AccountPage() {
           </button>
         </div>
       </div>
-      <Footer />
     </div>
   );
 }

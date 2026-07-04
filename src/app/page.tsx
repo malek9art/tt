@@ -193,7 +193,7 @@ export default async function HomePage() {
             </div>
             <Link href="/products?cat=repair-services"
               className="btn-accent shrink-0 inline-flex items-center gap-2">
-              احجز موعد صيانة <HiArrowLeft className="text-base"/>
+              تواصل لطلب صيانة <HiArrowLeft className="text-base"/>
             </Link>
           </div>
         </div>

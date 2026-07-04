@@ -119,7 +119,7 @@ export default function ProductDetails({ product, related }: Props) {
         <div className="grid gap-8 lg:grid-cols-2">
 
           {/* ===== معرض الصور ===== */}
-          <div className="sticky top-20 self-start">
+          <div className="lg:sticky lg:top-20 self-start">
             {/* الصورة الرئيسية */}
             <div
               className="relative mb-3 aspect-square overflow-hidden rounded-2xl border border-[var(--border)] bg-brand-50 dark:bg-brand-900/20 cursor-zoom-in"

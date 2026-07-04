@@ -6,6 +6,7 @@ import ProductCardSkeleton from "@/components/shop/ProductCardSkeleton";
 import { getProducts, getCategories } from "@/lib/api";
 import Link from "next/link";
 import { SlidersHorizontal } from "lucide-react";
+import RepairServiceIntro from "@/components/shop/RepairServiceIntro";
 
 export const metadata = { title: "المنتجات" };
 export const revalidate = 30;
@@ -84,6 +85,8 @@ export default async function ProductsPage({ searchParams }: PageProps) {
 
           {/* المنتجات */}
           <main className="flex-1 min-w-0">
+            {cat === "repair-services" && <RepairServiceIntro/>}
+
             {/* شريط الفرز */}
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-[var(--text-muted)]">

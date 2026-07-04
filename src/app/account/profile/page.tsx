@@ -1,10 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
-import Link from "next/link";
-import { User, Phone, Mail, Save, Loader2, CheckCircle, ChevronLeft } from "lucide-react";
+import { User, Phone, Mail, Save, Loader2, CheckCircle } from "lucide-react";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,20 +48,13 @@ export default function ProfilePage() {
   const iCls = "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
 
   return (
-    <div className="min-h-screen">
-      <Header />
-      <div className="container-main py-8 max-w-xl">
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/account" className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
-            <ChevronLeft size={16}/>
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold text-[var(--text-1)]">الملف الشخصي</h1>
-            <p className="text-xs text-[var(--text-muted)]">تعديل بياناتك الشخصية</p>
-          </div>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold text-[var(--text-1)]">الملف الشخصي</h1>
+        <p className="text-xs text-[var(--text-muted)] mt-0.5">تعديل بياناتك الشخصية</p>
+      </div>
 
-        {loading ? (
+      {loading ? (
           <div className="space-y-3">
             {[1,2,3].map(i=><div key={i} className="skeleton h-12 w-full rounded-lg"/>)}
           </div>
@@ -127,8 +117,6 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
-      </div>
-      <Footer />
     </div>
   );
 }

@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "next/navigation";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
 import Link from "next/link";
 import { Package, ChevronLeft, Clock } from "lucide-react";
 import { formatPrice } from "@/lib/api";
@@ -51,24 +49,22 @@ export default function OrdersPage() {
   }, [user, authLoading, router]);
 
   return (
-    <div className="min-h-screen">
-      <Header />
-      <div className="container-main py-8">
-        <nav className="mb-6 text-sm text-[var(--text-muted)]">
-          <Link href="/account" className="hover:text-brand-700">حسابي</Link>
-          <span className="mx-2">/</span>
-          <span className="text-[var(--text-1)]">طلباتي</span>
-        </nav>
-        <h1 className="mb-6 text-2xl font-bold text-[var(--text-1)]">طلباتي</h1>
+    <div className="space-y-5">
+        <div>
+          <h1 className="text-xl font-bold text-[var(--text-1)]">طلباتي</h1>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            {loading ? "جارٍ التحميل..." : `${orders.length} طلب`}
+          </p>
+        </div>
 
         {loading ? (
           <div className="space-y-3">
             {[1,2,3].map(i => <div key={i} className="skeleton h-24 w-full" />)}
           </div>
         ) : orders.length === 0 ? (
-          <div className="py-20 text-center rounded-xl border border-dashed border-[var(--border)]">
-            <Package size={48} className="mx-auto mb-4 text-[var(--border)]" />
-            <p className="font-semibold text-[var(--text-1)] mb-2">لا توجد طلبات بعد</p>
+          <div className="card-base py-20 text-center">
+            <Package size={48} className="mx-auto mb-4 opacity-20 text-[var(--text-muted)]" />
+            <p className="font-semibold text-[var(--text-1)] mb-1">لا توجد طلبات بعد</p>
             <p className="text-sm text-[var(--text-muted)] mb-6">ابدأ التسوق لتظهر طلباتك هنا</p>
             <Link href="/products" className="btn-primary">تسوّق الآن</Link>
           </div>
@@ -108,8 +104,6 @@ export default function OrdersPage() {
             })}
           </div>
         )}
-      </div>
-      <Footer />
     </div>
   );
 }

@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter, useParams } from "next/navigation";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
 import Image  from "next/image";
 import Link   from "next/link";
 import {
@@ -88,23 +86,15 @@ export default function OrderDetailPage() {
   }, [id, user, authLoading, router]);
 
   if (loading) return (
-    <div className="min-h-screen">
-      <Header/>
-      <div className="container-main py-8 max-w-2xl space-y-4">
-        {[1,2,3].map(i=><div key={i} className="skeleton h-32 w-full rounded-xl"/>)}
-      </div>
-      <Footer/>
+    <div className="space-y-4">
+      {[1,2,3].map(i=><div key={i} className="skeleton h-32 w-full rounded-xl"/>)}
     </div>
   );
 
   if (!order) return (
-    <div className="min-h-screen">
-      <Header/>
-      <div className="container-main py-20 text-center">
-        <p className="text-[var(--text-muted)]">الطلب غير موجود</p>
-        <Link href="/account/orders" className="btn-primary mt-4 inline-flex">← طلباتي</Link>
-      </div>
-      <Footer/>
+    <div className="py-20 text-center">
+      <p className="text-[var(--text-muted)]">الطلب غير موجود</p>
+      <Link href="/account/orders" className="btn-primary mt-4 inline-flex">← طلباتي</Link>
     </div>
   );
 
@@ -130,9 +120,7 @@ export default function OrderDetailPage() {
     : null;
 
   return (
-    <div className="min-h-screen">
-      <Header/>
-      <div className="container-main py-8 max-w-2xl space-y-5">
+    <div className="space-y-5">
         {/* رأس الصفحة */}
         <div className="flex items-center gap-3">
           <Link href="/account/orders"
@@ -391,8 +379,6 @@ export default function OrderDetailPage() {
             </div>
           </div>
         )}
-      </div>
-      <Footer/>
     </div>
   );
 }

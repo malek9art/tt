@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { Shield, Users, CheckCircle } from "lucide-react";
+import Link from "next/link";
+import { Shield, Users, CheckCircle, ArrowRight } from "lucide-react";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,9 +55,15 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-1)]">الأدوار والصلاحيات</h1>
-        <p className="text-sm text-[var(--text-muted)]">{roles.length} دور مُعرَّف في النظام</p>
+      <div className="flex items-center gap-3">
+        <Link href="/admin/settings"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
+          <ArrowRight size={16}/>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-1)]">الأدوار والصلاحيات</h1>
+          <p className="text-sm text-[var(--text-muted)]">{roles.length} دور مُعرَّف في النظام</p>
+        </div>
       </div>
 
       {loading ? (

@@ -1,10 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
-import Link from "next/link";
-import { Plus, Trash2, MapPin, ChevronLeft, Loader2, Star } from "lucide-react";
+import { Plus, Trash2, MapPin, Loader2, Star } from "lucide-react";
 import LocationPicker, { type GeoPoint } from "@/components/map/LocationPicker";
 
 const sb = createBrowserClient(
@@ -102,18 +99,11 @@ export default function AddressesPage() {
   const iCls = "w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2.5 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors";
 
   return (
-    <div className="min-h-screen">
-      <Header />
-      <div className="container-main py-8 max-w-xl">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/account" className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
-              <ChevronLeft size={16}/>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-[var(--text-1)]">عناوين التوصيل</h1>
-              <p className="text-xs text-[var(--text-muted)]">{addresses.length} عنوان محفوظ</p>
-            </div>
+    <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-[var(--text-1)]">عناوين التوصيل</h1>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">{addresses.length} عنوان محفوظ</p>
           </div>
           <button onClick={() => setShowForm(!showForm)} className="btn-primary gap-1.5 text-sm">
             <Plus size={15}/> إضافة
@@ -242,8 +232,6 @@ export default function AddressesPage() {
             ))}
           </div>
         )}
-      </div>
-      <Footer />
     </div>
   );
 }

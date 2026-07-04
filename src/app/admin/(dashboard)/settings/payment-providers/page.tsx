@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import {
   HiCheckCircle, HiXCircle, HiArrowPath, HiCog6Tooth, HiXMark,
   HiPlus, HiTrash, HiPhoto, HiDevicePhoneMobile, HiBuildingLibrary,
-  HiMapPin, HiCreditCard, HiBanknotes,
+  HiMapPin, HiCreditCard, HiBanknotes, HiArrowRight,
 } from "react-icons/hi2";
 
 const sb = createBrowserClient(
@@ -275,10 +276,16 @@ export default function PaymentProvidersPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-1)]">وسائل الدفع</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-0.5">إدارة كاملة لطرق الدفع: تفعيل، إعداد، إضافة وسائل جديدة</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/admin/settings"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--text-2)] hover:border-brand-300 transition-colors">
+            <HiArrowRight className="text-base"/>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--text-1)]">وسائل الدفع</h1>
+            <p className="text-sm text-[var(--text-muted)] mt-0.5">إدارة كاملة لطرق الدفع: تفعيل، إعداد، إضافة وسائل جديدة</p>
+          </div>
         </div>
         <button onClick={load} className="btn-ghost border border-[var(--border)] gap-2 flex items-center">
           <HiArrowPath className="text-base"/> تحديث

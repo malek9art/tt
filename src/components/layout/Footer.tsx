@@ -16,13 +16,13 @@ export default function Footer() {
   ].filter(x => x.href);
 
   return (
-    <footer className="mt-20 border-t border-[var(--border)] bg-brand-900 text-brand-100" dir="rtl">
-      <div className="container-main py-12">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="mt-12 border-t border-[var(--border)] bg-brand-900 text-brand-100" dir="rtl">
+      <div className="container-main py-10">
+        <div className="grid gap-6 sm:grid-cols-3">
 
           {/* الشعار والوصف */}
           <div>
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-3">
               {s.logo_url ? (
                 <div className="relative h-10 w-10 overflow-hidden rounded-xl">
                   <Image src={s.logo_url} alt={s.name} fill sizes="40px" className="object-contain"/>
@@ -35,7 +35,7 @@ export default function Footer() {
                 {s.tagline && <div className="text-xs text-brand-300">{s.tagline}</div>}
               </div>
             </div>
-            <p className="text-sm text-brand-300 leading-relaxed mb-5">
+            <p className="text-sm text-brand-300 leading-relaxed mb-4">
               وجهتك الأولى للجوالات والإكسسوارات في اليمن. أفضل الأسعار وأعلى جودة مع ضمان أصلي.
             </p>
             {/* السوشال ميديا */}
@@ -51,37 +51,17 @@ export default function Footer() {
             )}
           </div>
 
-          {/* روابط سريعة */}
+          {/* روابط مفيدة — بلا تكرار مع تنقّل الهيدر */}
           <div>
-            <h3 className="mb-4 font-semibold text-white text-sm border-b border-brand-800 pb-2">روابط سريعة</h3>
-            <ul className="space-y-2 text-sm">
+            <h3 className="mb-3 font-semibold text-white text-sm border-b border-brand-800 pb-2">روابط مفيدة</h3>
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               {[
-                { href:"/products",                 label:"جميع المنتجات" },
-                { href:"/products?cat=smartphones", label:"الهواتف الذكية" },
-                { href:"/products?cat=accessories", label:"الإكسسوارات" },
-                { href:"/products?cat=spare-parts", label:"قطع الغيار" },
-                { href:"/track",                    label:"تتبع طلبك" },
-                { href:"/account",                  label:"حسابي" },
-              ].map(({ href, label }) => (
-                <li key={href}>
-                  <Link href={href} className="text-brand-300 hover:text-accent-400 transition-colors flex items-center gap-1.5 group">
-                    <span className="h-px w-3 bg-brand-700 group-hover:bg-accent-500 transition-colors"/>
-                    {label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* خدمة العملاء */}
-          <div>
-            <h3 className="mb-4 font-semibold text-white text-sm border-b border-brand-800 pb-2">خدمة العملاء</h3>
-            <ul className="space-y-2 text-sm">
-              {[
+                { href:"/track",           label:"تتبع طلبك" },
+                { href:"/account",         label:"حسابي" },
                 { href:"/faq",             label:"الأسئلة الشائعة" },
                 { href:"/shipping-policy", label:"سياسة الشحن" },
                 { href:"/return-policy",   label:"سياسة الإرجاع" },
-                { href:"/privacy",         label:"سياسة الخصوصية" },
+                { href:"/privacy",         label:"الخصوصية" },
                 { href:"/terms",           label:"شروط الاستخدام" },
               ].map(({ href, label }) => (
                 <li key={href}>
@@ -96,8 +76,8 @@ export default function Footer() {
 
           {/* معلومات التواصل */}
           <div>
-            <h3 className="mb-4 font-semibold text-white text-sm border-b border-brand-800 pb-2">تواصل معنا</h3>
-            <ul className="space-y-3 text-sm">
+            <h3 className="mb-3 font-semibold text-white text-sm border-b border-brand-800 pb-2">تواصل معنا</h3>
+            <ul className="space-y-2.5 text-sm">
               {s.phone && (
                 <li>
                   <a href={`tel:${s.phone}`}
@@ -153,7 +133,7 @@ export default function Footer() {
         </div>
 
         {/* شعارات وسائل الدفع */}
-        <div className="mt-10 border-t border-brand-800 pt-6">
+        <div className="mt-8 border-t border-brand-800 pt-5">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-brand-500">© {new Date().getFullYear()} {s.name || "مركز الأحمدي"} — جميع الحقوق محفوظة</p>
             <div className="flex items-center gap-2">
