@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { normalisePhone, sendWhatsAppOtp } from "@/lib/whatsapp";
+import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
 function sb() {
   return createClient(
@@ -16,6 +17,13 @@ function generateCode(): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // حد لكل IP بالإضافة للحد الحالي لكل رقم — يمنع تجربة أرقام كثيرة مختلفة
+    // بسرعة من نفس المصدر (استنزاف تكلفة إرسال واتساب)
+    const ipAllowed = await checkRateLimit(`phone-send:${requestIp(request)}`, 8, 600);
+    if (!ipAllowed) {
+      return NextResponse.json({ error: "محاولات كثيرة جداً — حاول مرة أخرى بعد قليل" }, { status: 429 });
+    }
+
     const body = await request.json() as { phone?: string };
     if (!body.phone) return NextResponse.json({ error: "رقم الهاتف مطلوب" }, { status: 400 });
 

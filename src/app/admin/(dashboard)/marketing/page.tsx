@@ -1,27 +1,22 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { createBrowserClient } from "@supabase/ssr";
 import { Plus, Trash2, Tag, Copy, CheckCircle, Loader2 } from "lucide-react";
-
-const sb = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 interface Coupon {
   id: string;
   code: string;
-  type: string;
-  value: number;
-  min_order_amount: number | null;
+  discount_type: string;
+  discount_value: number;
+  min_order_amount: number;
   max_uses: number | null;
-  uses_count: number;
-  expires_at: string | null;
+  per_user_limit: number;
+  current_uses: number;
+  valid_until: string | null;
   is_active: boolean;
   created_at: string;
 }
 
-const EMPTY = { code:"", type:"percentage", value:10, min_order_amount:"", max_uses:"", expires_at:"" };
+const EMPTY = { code: "", discount_type: "percentage", discount_value: 10, min_order_amount: "", max_uses: "", per_user_limit: "1", valid_until: "" };
 
 export default function MarketingPage() {
   const [coupons,  setCoupons]  = useState<Coupon[]>([]);
@@ -34,9 +29,9 @@ export default function MarketingPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await sb.from("coupons")
-      .select("*").order("created_at", { ascending: false });
-    setCoupons(data ?? []);
+    const res = await fetch("/api/admin/coupons");
+    const json = await res.json();
+    setCoupons(res.ok ? (json.coupons ?? []) : []);
     setLoading(false);
   }, []);
 
@@ -44,31 +39,40 @@ export default function MarketingPage() {
 
   const handleCreate = async () => {
     if (!form.code.trim()) { setError("أدخل كود الكوبون"); return; }
-    if (!form.value || Number(form.value) <= 0) { setError("أدخل قيمة الخصم"); return; }
+    if (!form.discount_value || Number(form.discount_value) <= 0) { setError("أدخل قيمة الخصم"); return; }
     setSaving(true); setError("");
-    const { error: dbErr } = await sb.from("coupons").insert({
-      code:             form.code.trim().toUpperCase(),
-      type:             form.type,
-      value:            Number(form.value),
-      min_order_amount: form.min_order_amount ? Number(form.min_order_amount) : null,
-      max_uses:         form.max_uses ? Number(form.max_uses) : null,
-      expires_at:       form.expires_at || null,
-      is_active:        true,
+    const res = await fetch("/api/admin/coupons", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code:             form.code.trim().toUpperCase(),
+        discount_type:    form.discount_type,
+        discount_value:   Number(form.discount_value),
+        min_order_amount: form.min_order_amount ? Number(form.min_order_amount) : null,
+        max_uses:         form.max_uses ? Number(form.max_uses) : null,
+        per_user_limit:   form.per_user_limit ? Number(form.per_user_limit) : 1,
+        valid_until:      form.valid_until || null,
+      }),
     });
-    if (dbErr) setError(dbErr.message);
+    const json = await res.json();
+    if (!res.ok) setError(json.error ?? "فشل إنشاء الكوبون");
     else { setForm(EMPTY); setShowForm(false); load(); }
     setSaving(false);
   };
 
   const toggleActive = async (id: string, val: boolean) => {
-    await sb.from("coupons").update({ is_active: val }).eq("id", id);
-    setCoupons(prev => prev.map(c => c.id===id ? {...c, is_active:val} : c));
+    const res = await fetch(`/api/admin/coupons/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: val }),
+    });
+    if (res.ok) setCoupons(prev => prev.map(c => c.id===id ? {...c, is_active:val} : c));
   };
 
   const deleteCoupon = async (id: string, code: string) => {
     if (!confirm(`حذف الكوبون "${code}"؟`)) return;
-    await sb.from("coupons").delete().eq("id", id);
-    setCoupons(prev => prev.filter(c => c.id !== id));
+    const res = await fetch(`/api/admin/coupons/${id}`, { method: "DELETE" });
+    if (res.ok) setCoupons(prev => prev.filter(c => c.id !== id));
   };
 
   const copyCode = (code: string) => {
@@ -105,7 +109,7 @@ export default function MarketingPage() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">نوع الخصم</label>
-              <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} className={iCls}>
+              <select value={form.discount_type} onChange={e=>setForm(f=>({...f,discount_type:e.target.value}))} className={iCls}>
                 <option value="percentage">نسبة مئوية (%)</option>
                 <option value="fixed">مبلغ ثابت (YER)</option>
               </select>
@@ -114,11 +118,11 @@ export default function MarketingPage() {
               <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">قيمة الخصم *</label>
               <div className="relative">
                 <input type="number" min="0" dir="ltr"
-                  placeholder={form.type==="percentage"?"10":"5000"}
-                  value={form.value}
-                  onChange={e=>setForm(f=>({...f,value:Number(e.target.value)}))} className={iCls+" pe-8"}/>
+                  placeholder={form.discount_type==="percentage"?"10":"5000"}
+                  value={form.discount_value}
+                  onChange={e=>setForm(f=>({...f,discount_value:Number(e.target.value)}))} className={iCls+" pe-8"}/>
                 <span className="absolute top-2.5 end-3 text-xs text-[var(--text-muted)]">
-                  {form.type==="percentage"?"%":"﷼"}
+                  {form.discount_type==="percentage"?"%":"﷼"}
                 </span>
               </div>
             </div>
@@ -128,14 +132,19 @@ export default function MarketingPage() {
                 onChange={e=>setForm(f=>({...f,min_order_amount:e.target.value}))} className={iCls}/>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">أقصى عدد استخدامات</label>
+              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">أقصى عدد استخدامات إجمالي</label>
               <input type="number" min="1" dir="ltr" placeholder="غير محدود" value={form.max_uses}
                 onChange={e=>setForm(f=>({...f,max_uses:e.target.value}))} className={iCls}/>
             </div>
             <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">أقصى استخدام لكل عميل</label>
+              <input type="number" min="1" dir="ltr" placeholder="1" value={form.per_user_limit}
+                onChange={e=>setForm(f=>({...f,per_user_limit:e.target.value}))} className={iCls}/>
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-[var(--text-2)]">تاريخ الانتهاء</label>
-              <input type="datetime-local" dir="ltr" value={form.expires_at}
-                onChange={e=>setForm(f=>({...f,expires_at:e.target.value}))} className={iCls}/>
+              <input type="datetime-local" dir="ltr" value={form.valid_until}
+                onChange={e=>setForm(f=>({...f,valid_until:e.target.value}))} className={iCls}/>
             </div>
           </div>
           <div className="flex gap-2 pt-2">
@@ -171,8 +180,8 @@ export default function MarketingPage() {
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {coupons.map(c => {
-                  const expired = c.expires_at && new Date(c.expires_at) < new Date();
-                  const full    = c.max_uses !== null && c.uses_count >= c.max_uses;
+                  const expired = c.valid_until && new Date(c.valid_until) < new Date();
+                  const full    = c.max_uses !== null && c.current_uses >= c.max_uses;
                   return (
                     <tr key={c.id} className="hover:bg-[var(--bg-page)] transition-colors">
                       <td className="px-4 py-3">
@@ -187,16 +196,16 @@ export default function MarketingPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-[var(--text-2)]">
-                        {c.type==="percentage"?"نسبة":"مبلغ ثابت"}
+                        {c.discount_type==="percentage"?"نسبة":"مبلغ ثابت"}
                       </td>
                       <td className="px-4 py-3 font-bold text-brand-700 dark:text-accent-400" dir="ltr">
-                        {c.type==="percentage" ? `${c.value}%` : `${c.value.toLocaleString("ar")} ﷼`}
+                        {c.discount_type==="percentage" ? `${c.discount_value}%` : `${c.discount_value.toLocaleString("ar")} ﷼`}
                       </td>
                       <td className="px-4 py-3 text-[var(--text-2)]">
-                        {c.uses_count}{c.max_uses ? ` / ${c.max_uses}` : ""}
+                        {c.current_uses}{c.max_uses ? ` / ${c.max_uses}` : ""}
                       </td>
                       <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
-                        {c.expires_at ? new Date(c.expires_at).toLocaleDateString("ar-YE") : "لا يوجد"}
+                        {c.valid_until ? new Date(c.valid_until).toLocaleDateString("ar-YE") : "لا يوجد"}
                       </td>
                       <td className="px-4 py-3">
                         {expired || full ? (

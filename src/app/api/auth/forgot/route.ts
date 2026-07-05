@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
 // Roles allowed to self-reset their password via email.
 // Staff and drivers must ask the manager, who sets a password from the admin panel.
@@ -15,6 +16,13 @@ function svc() {
 
 export async function POST(request: NextRequest) {
   try {
+    // حد لمعدل الطلبات لكل IP — المسار يستدعي listUsers({perPage:1000}) في كل
+    // مرة، وهي عملية مكلفة قابلة للاستنزاف دون أي حد سابقاً
+    const allowed = await checkRateLimit(`forgot:${requestIp(request)}`, 5, 300);
+    if (!allowed) {
+      return NextResponse.json({ error: "محاولات كثيرة جداً — حاول مرة أخرى بعد قليل" }, { status: 429 });
+    }
+
     const body = await request.json() as { email?: string };
     const email = body.email?.trim().toLowerCase();
     if (!email || !email.includes("@")) {

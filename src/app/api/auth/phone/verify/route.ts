@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { normalisePhone } from "@/lib/whatsapp";
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
 function adminClient() {
   return createClient(
@@ -14,6 +15,12 @@ function adminClient() {
 
 export async function POST(request: NextRequest) {
   try {
+    // حد لكل IP — يمنع تجربة أكواد/أرقام كثيرة بسرعة من نفس المصدر
+    const ipAllowed = await checkRateLimit(`phone-verify:${requestIp(request)}`, 20, 600);
+    if (!ipAllowed) {
+      return NextResponse.json({ error: "محاولات كثيرة جداً — حاول مرة أخرى بعد قليل" }, { status: 429 });
+    }
+
     const body = await request.json() as { phone?: string; code?: string; full_name?: string };
     if (!body.phone || !body.code) {
       return NextResponse.json({ error: "الهاتف والرمز مطلوبان" }, { status: 400 });

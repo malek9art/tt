@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { notifyOrderPaid, notifyOrderCancelled } from "@/lib/notifications";
+import { notifyOrderPaid, notifyOrderCancelled, notifyCustomerOrderStatus } from "@/lib/notifications";
 import { applyOrderStock } from "@/lib/admin/stock";
+
+const CUSTOMER_STATUS_LABELS: Record<string, string> = {
+  confirmed:          "تم تأكيد طلبك وجاري تجهيزه",
+  processing:         "جاري تجهيز طلبك",
+  ready_for_delivery: "طلبك جاهز للشحن",
+  out_for_delivery:   "طلبك في الطريق إليك 🚚",
+  delivered:          "تم تسليم طلبك بنجاح ✅",
+  returned:           "تم إرجاع طلبك",
+};
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { error, supabase } = await requireAdmin("orders:read");
@@ -26,7 +35,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // الحالة السابقة — لنعرف إن كان هذا إلغاءً جديداً فلا نُرجع المخزون مرتين
   const { data: prev } = await supabase
     .from("orders")
-    .select("status, order_items(variant_id, name_snapshot, quantity)")
+    .select("status, customer_id, order_items(variant_id, name_snapshot, quantity)")
     .eq("id", id)
     .single();
 
@@ -53,8 +62,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (prev && prev.status !== "cancelled") {
       const items = ((prev.order_items ?? []) as { variant_id: string | null; name_snapshot: string; quantity: number }[])
         .map(i => ({ variant_id: i.variant_id, name_snapshot: i.name_snapshot, quantity: i.quantity }));
-      applyOrderStock(id, data.order_number, items, "return").catch(() => {});
+      applyOrderStock(id, data.order_number, items, "return");
     }
+  } else if (body.status && body.status !== prev?.status && prev?.customer_id && data?.order_number) {
+    const label = CUSTOMER_STATUS_LABELS[body.status];
+    if (label) notifyCustomerOrderStatus(prev.customer_id, data.order_number, label).catch(() => {});
   }
 
   return NextResponse.json(data);

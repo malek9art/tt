@@ -194,6 +194,7 @@ export const PaymentGateway = {
       instructions: result.instruction,
       expires_at:   result.expiresAt ?? null,
       failure_reason: result.error ?? null,
+      provider_txn_id: result.providerTxnId ?? null,
     }).eq("id", payment.id);
 
     // Sync order payment_status
@@ -333,13 +334,17 @@ export const PaymentGateway = {
    */
   async sweepExpired(): Promise<number> {
     const sb = serviceClient();
-    const { data: stale } = await sb
+    const { data: stale, error } = await sb
       .from("payments")
       .update({ status: "expired", updated_at: new Date().toISOString() })
       .in("status", ["pending", "awaiting_confirmation"])
       .not("expires_at", "is", null)
       .lt("expires_at", new Date().toISOString())
       .select("id, order_id");
+    if (error) {
+      console.error("sweepExpired:", error);
+      return 0;
+    }
     for (const p of stale ?? []) {
       await sb.from("orders").update({ payment_status: "expired" }).eq("id", p.order_id);
     }

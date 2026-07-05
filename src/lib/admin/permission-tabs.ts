@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 // خريطة موحّدة تبويب↔صلاحيات — مصدر واحد للحقيقة يستخدمه كل من:
 // AdminSidebar (لإظهار/إخفاء التبويب حسب ما يملكه المستخدم فعلاً)
 // وشاشة إدارة المستخدمين (لمنح/سحب حزمة الصلاحيات عند تفعيل تبويب لموظف)
@@ -41,7 +43,7 @@ export function hasAnyPermission(granted: Set<string>, required: string[]): bool
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function fetchUserPermissions(supabase: any, userId: string): Promise<Set<string>> {
+export async function fetchUserPermissions(supabase: SupabaseClient<any, any, any>, userId: string): Promise<Set<string>> {
   const { data, error } = await supabase.rpc("get_user_permissions", { _user_id: userId });
   if (error || !data) return new Set();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

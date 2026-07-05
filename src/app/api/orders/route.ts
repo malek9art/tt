@@ -3,6 +3,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { notifyNewOrder } from "@/lib/notifications";
 import { checkStockAvailability, applyOrderStock } from "@/lib/admin/stock";
+import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
 interface OrderItem {
   product_id:     string;
@@ -65,6 +66,12 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "يجب تسجيل الدخول أولاً" }, { status: 401 });
+    }
+
+    // حد لمعدل إنشاء الطلبات لكل مستخدم — يمنع إغراق النظام بطلبات آلية متكررة
+    const allowed = await checkRateLimit(`orders:${user.id}`, 10, 60);
+    if (!allowed) {
+      return NextResponse.json({ error: "طلبات كثيرة جداً — حاول مرة أخرى بعد قليل" }, { status: 429 });
     }
 
     const body: OrderPayload = await request.json();
@@ -153,27 +160,43 @@ export async function POST(request: NextRequest) {
       : 50000;
     const shipping = subtotal >= freeAbove ? 0 : 2000;
 
-    // التحقق من الكوبون وحساب الخصم
+    // التحقق من الكوبون وحساب الخصم — الحجز الفعلي (increment_coupon_uses) ذرّي
+    // ويحدث هنا قبل إنشاء الطلب، حتى لا يُطبَّق خصم لكوبون استُنفد للتو من
+    // طلب متزامن آخر بين لحظة التحقق ولحظة إتمام هذا الطلب
     let discount = 0;
     let couponId: string | null = null;
     if (body.coupon_code) {
       const { data: coupon } = await supabase
         .from("coupons")
-        .select("id, type, value, min_order_amount, max_uses, uses_count, expires_at, is_active")
+        .select("id, discount_type, discount_value, min_order_amount, max_uses, current_uses, per_user_limit, valid_until, is_active")
         .eq("code", body.coupon_code.trim().toUpperCase())
         .eq("is_active", true)
         .maybeSingle();
 
       if (coupon) {
-        const expired  = coupon.expires_at && new Date(coupon.expires_at) < new Date();
-        const maxedOut = coupon.max_uses !== null && coupon.uses_count >= coupon.max_uses;
+        const expired  = coupon.valid_until && new Date(coupon.valid_until) < new Date();
+        const maxedOut = coupon.max_uses !== null && coupon.current_uses >= coupon.max_uses;
         const belowMin = coupon.min_order_amount && subtotal < coupon.min_order_amount;
 
-        if (!expired && !maxedOut && !belowMin) {
-          discount = coupon.type === "percentage"
-            ? Math.round(subtotal * coupon.value / 100)
-            : Math.min(coupon.value, subtotal);
-          couponId = coupon.id;
+        let overUserLimit = false;
+        if (!expired && !maxedOut && !belowMin && coupon.per_user_limit) {
+          const { count } = await supabase
+            .from("orders")
+            .select("id", { count: "exact", head: true })
+            .eq("customer_id", user.id)
+            .eq("coupon_id", coupon.id)
+            .neq("status", "cancelled");
+          overUserLimit = (count ?? 0) >= coupon.per_user_limit;
+        }
+
+        if (!expired && !maxedOut && !belowMin && !overUserLimit) {
+          const { data: claimed } = await supabase.rpc("increment_coupon_uses", { p_coupon_id: coupon.id });
+          if (claimed) {
+            discount = coupon.discount_type === "percentage"
+              ? Math.round(subtotal * coupon.discount_value / 100)
+              : Math.min(coupon.discount_value, subtotal);
+            couponId = coupon.id;
+          }
         }
       }
     }
@@ -200,8 +223,16 @@ export async function POST(request: NextRequest) {
 
     if (orderError || !order) {
       console.error("Order insert error:", orderError);
+      if (couponId) await supabase.rpc("release_coupon_use", { p_coupon_id: couponId });
       return NextResponse.json({ error: "فشل في إنشاء الطلب" }, { status: 500 });
     }
+
+    // تراجع كامل عن الطلب (وتحرير حجز الكوبون إن وُجد) عند فشل أي خطوة تالية
+    const rollbackOrder = async () => {
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+      await supabase.from("orders").delete().eq("id", order.id);
+      if (couponId) await supabase.rpc("release_coupon_use", { p_coupon_id: couponId });
+    };
 
     const orderItems = items.map(item => ({
       order_id:       order.id,
@@ -220,37 +251,65 @@ export async function POST(request: NextRequest) {
       .insert(orderItems);
 
     if (itemsError) {
-      await supabase.from("orders").delete().eq("id", order.id);
+      await rollbackOrder();
       return NextResponse.json({ error: "فشل في حفظ عناصر الطلب" }, { status: 500 });
     }
 
-    // سجل الدفع مع Idempotency Key
-    await supabase.from("payments").insert({
+    // سجل الدفع مع Idempotency Key — القيد الفريد على العمود في القاعدة
+    // يحسم أي سباق بين طلبين متزامنين لنفس المفتاح (23505 عند التصادم)
+    const finalIdempotencyKey = idempotencyKey ?? `order-${order.id}-${Date.now()}`;
+    const { error: paymentError } = await supabase.from("payments").insert({
       order_id:        order.id,
       provider_code:   body.payment_method || "cod",
       method:          body.payment_method || "cod",
       amount:          total,
       currency,
       status:          "pending",
-      idempotency_key: idempotencyKey ?? `order-${order.id}-${Date.now()}`,
+      idempotency_key: finalIdempotencyKey,
     });
 
-    // تحديث عدد استخدامات الكوبون
-    if (couponId) {
-      await supabase.rpc("increment_coupon_uses", { coupon_id: couponId });
+    if (paymentError) {
+      await rollbackOrder();
+      if (paymentError.code === "23505" && idempotencyKey) {
+        // طلب مكرر فعلاً — طلب آخر بنفس المفتاح سبقنا بجزء من الثانية
+        const { data: existing } = await supabase
+          .from("payments")
+          .select("order_id, orders(id, order_number, total_amount, currency)")
+          .eq("idempotency_key", idempotencyKey)
+          .maybeSingle() as { data: PaymentWithOrder | null };
+        if (existing?.order_id) {
+          const rawOrder = existing.orders;
+          const dupOrder = Array.isArray(rawOrder) ? rawOrder[0] : rawOrder;
+          return NextResponse.json({
+            success: true, order_id: existing.order_id,
+            order_number: dupOrder?.order_number ?? "", total: dupOrder?.total_amount ?? 0,
+            currency: dupOrder?.currency ?? "YER", duplicate: true,
+          });
+        }
+      }
+      console.error("Payment insert error:", paymentError);
+      return NextResponse.json({ error: "فشل في تسجيل الدفعة" }, { status: 500 });
     }
 
     // سجل الشحن
-    await supabase.from("shipments").insert({
+    const { error: shipmentError } = await supabase.from("shipments").insert({
       order_id: order.id,
       status:   "pending",
     });
 
-    // خصم المخزون + قيد حركة بيع لكل عنصر (fire-and-forget — لا يكسر الطلب)
+    if (shipmentError) {
+      await supabase.from("payments").delete().eq("order_id", order.id);
+      await rollbackOrder();
+      console.error("Shipment insert error:", shipmentError);
+      return NextResponse.json({ error: "فشل في تسجيل الشحنة" }, { status: 500 });
+    }
+
+    // خصم المخزون + قيد حركة بيع لكل عنصر (fire-and-forget — applyOrderStock
+    // تلتقط أخطاءها داخلياً لكل عنصر ولا ترمي استثناء أبداً)
     applyOrderStock(order.id, order.order_number,
       items.map(i => ({ variant_id: i.variant_id, name_snapshot: i.name_snapshot, quantity: i.quantity })),
       "sale",
-    ).catch(() => {});
+    );
 
     // إشعار الأدمن بالطلب الجديد (fire-and-forget)
     notifyNewOrder(order.order_number, order.id, total).catch(() => {});

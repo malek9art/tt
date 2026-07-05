@@ -74,6 +74,9 @@ export interface InitiatePaymentResult {
   instruction: PaymentInstruction;
   expiresAt?: string;
   error?: string;
+  /** معرّف العملية عند المزوّد (مثل Stripe PaymentIntent id) — يُحفظ في provider_txn_id
+   *  ليتمكّن handleWebhook لاحقاً من مطابقة الدفعة بواسطته */
+  providerTxnId?: string;
 }
 
 // ── Confirm (manual admin confirmation) ─────────────

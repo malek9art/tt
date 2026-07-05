@@ -19,20 +19,27 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   const body = await request.json();
-  const { code, type, value, min_order_amount, max_uses, expires_at } = body;
+  const {
+    code, description_ar, discount_type, discount_value,
+    min_order_amount, max_uses, per_user_limit, valid_until,
+  } = body;
 
   if (!code?.trim()) return NextResponse.json({ error: "كود الكوبون مطلوب" }, { status: 400 });
-  if (!value || Number(value) <= 0) return NextResponse.json({ error: "قيمة الخصم مطلوبة" }, { status: 400 });
+  if (!discount_value || Number(discount_value) <= 0) {
+    return NextResponse.json({ error: "قيمة الخصم مطلوبة" }, { status: 400 });
+  }
 
   const { data, error: dbErr } = await supabase
     .from("coupons")
     .insert({
       code:             code.trim().toUpperCase(),
-      type:             type ?? "percentage",
-      value:            Number(value),
-      min_order_amount: min_order_amount ? Number(min_order_amount) : null,
+      description_ar:   description_ar?.trim() || null,
+      discount_type:    discount_type === "fixed" ? "fixed" : "percentage",
+      discount_value:   Number(discount_value),
+      min_order_amount: min_order_amount ? Number(min_order_amount) : 0,
       max_uses:         max_uses ? Number(max_uses) : null,
-      expires_at:       expires_at || null,
+      per_user_limit:   per_user_limit ? Number(per_user_limit) : 1,
+      valid_until:      valid_until || null,
       is_active:        true,
     })
     .select()

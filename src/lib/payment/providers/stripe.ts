@@ -45,6 +45,7 @@ export class StripeProvider implements IPaymentProvider {
           referenceNumber: intent.id,
           extra:           { clientSecret: intent.client_secret },
         },
+        providerTxnId: intent.id,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Stripe error";
