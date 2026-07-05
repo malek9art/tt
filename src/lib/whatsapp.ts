@@ -1,17 +1,11 @@
+export { normalisePhone } from "@/lib/auth-validation";
+
 export interface WhatsAppResult {
   success: boolean;
   error?:  string;
   /** يميّز "الخدمة غير مُعدّة على الخادم" عن "فشل فعلي من المزوّد" — حتى لا
    *  يُلام رقم العميل خطأً عندما يكون السبب مفتاح API مفقوداً */
   code?:   "not_configured" | "provider_error";
-}
-
-export function normalisePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("967")) return `+${digits}`;
-  if (digits.startsWith("0"))   return `+967${digits.slice(1)}`;
-  if (digits.length === 9)      return `+967${digits}`;
-  return `+${digits}`;
 }
 
 async function sendFonnte(phone: string, message: string): Promise<WhatsAppResult> {

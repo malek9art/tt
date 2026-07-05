@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { normalisePhone } from "@/lib/whatsapp";
+import { normalisePhone, phoneToVirtualEmail, validatePassword } from "@/lib/auth-validation";
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { checkRateLimit, requestIp } from "@/lib/rate-limit";
@@ -21,9 +21,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "محاولات كثيرة جداً — حاول مرة أخرى بعد قليل" }, { status: 429 });
     }
 
-    const body = await request.json() as { phone?: string; code?: string; full_name?: string };
-    if (!body.phone || !body.code) {
-      return NextResponse.json({ error: "الهاتف والرمز مطلوبان" }, { status: 400 });
+    const body = await request.json() as {
+      phone?: string; code?: string; full_name?: string;
+      password?: string; mode?: "signup" | "reset";
+    };
+    if (!body.phone || !body.code || !body.password || !body.mode) {
+      return NextResponse.json({ error: "الهاتف والرمز وكلمة المرور مطلوبة" }, { status: 400 });
+    }
+    if (body.mode !== "signup" && body.mode !== "reset") {
+      return NextResponse.json({ error: "طلب غير صحيح" }, { status: 400 });
+    }
+
+    const pwCheck = validatePassword(body.password);
+    if (!pwCheck.valid) {
+      return NextResponse.json({ error: pwCheck.error }, { status: 400 });
     }
 
     const phone = normalisePhone(body.phone);
@@ -59,8 +70,8 @@ export async function POST(request: NextRequest) {
     // 3) Mark OTP as used
     await admin.from("phone_otps").update({ used_at: new Date().toISOString() }).eq("id", otpRow.id);
 
-    // 4) Find or create Supabase user
-    const virtualEmail = `${phone.replace("+", "")}@phone.ahmadistore.internal`;
+    // 4) Find existing account, then create (signup) or update password (reset)
+    const virtualEmail = phoneToVirtualEmail(phone);
 
     let userId: string;
 
@@ -70,31 +81,46 @@ export async function POST(request: NextRequest) {
       .eq("phone", phone)
       .maybeSingle();
 
-    if (existingProfile) {
-      userId = existingProfile.id;
-    } else {
+    if (body.mode === "signup") {
+      // الحساب موجود مسبقاً — لا يجوز تسجيل الدخول بمجرد امتلاك رمز واتساب بعد
+      // إدخال كلمات المرور؛ يجب أن يمر العميل من نموذج تسجيل الدخول الفعلي
+      if (existingProfile) {
+        return NextResponse.json({ error: "هذا الرقم مسجّل مسبقاً — سجّل الدخول بدلاً من ذلك" }, { status: 400 });
+      }
+
       const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
         email:         virtualEmail,
         email_confirm: true,
         phone,
         phone_confirm: true,
-        user_metadata: { full_name: body.full_name?.trim() ?? "", phone, auth_method: "whatsapp" },
+        password:      body.password,
+        user_metadata: { full_name: body.full_name?.trim() ?? "", phone },
       });
 
       if (createErr || !newUser.user) {
-        const { data: { users } } = await admin.auth.admin.listUsers();
-        const found = users.find(u => u.email === virtualEmail);
-        if (!found) return NextResponse.json({ error: "فشل في إنشاء الحساب" }, { status: 500 });
-        userId = found.id;
-      } else {
-        userId = newUser.user.id;
-        if (body.full_name) {
-          await admin.from("profiles").upsert({
-            id:        userId,
-            full_name: body.full_name.trim(),
-            phone,
-          }, { onConflict: "id" });
-        }
+        return NextResponse.json({ error: "فشل في إنشاء الحساب" }, { status: 500 });
+      }
+
+      userId = newUser.user.id;
+      if (body.full_name) {
+        await admin.from("profiles").upsert({
+          id:        userId,
+          full_name: body.full_name.trim(),
+          phone,
+        }, { onConflict: "id" });
+      }
+    } else {
+      // mode === "reset"
+      if (!existingProfile) {
+        return NextResponse.json({ error: "لا يوجد حساب مسجّل بهذا الرقم" }, { status: 400 });
+      }
+      userId = existingProfile.id;
+
+      const { error: updateErr } = await admin.auth.admin.updateUserById(userId, {
+        password: body.password,
+      });
+      if (updateErr) {
+        return NextResponse.json({ error: "فشل في تحديث كلمة المرور" }, { status: 500 });
       }
     }
 
