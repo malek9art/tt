@@ -58,26 +58,21 @@ export default function RegisterForm() {
 
     setLoading(true); setError("");
 
-    const { data, error: err } = await supabase.auth.signUp({
-      email: form.email.trim().toLowerCase(),
-      password: form.password,
-      options: {
-        data: { full_name: form.full_name.trim() },
-        emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=%2Faccount`,
-      },
+    const res = await fetch("/api/auth/signup-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        full_name: form.full_name.trim(),
+      }),
     });
+    const d = await res.json();
 
     setLoading(false);
 
-    if (err) {
-      setError("تعذّر إنشاء الحساب — حاول مجدداً");
-      return;
-    }
-
-    // Supabase لا يُرجع خطأً عند وجود البريد مسبقاً (لمنع تعداد البريد) —
-    // بدلاً من ذلك يُرجع مستخدماً وهمياً بدون هويات (identities)
-    if (data.user && data.user.identities && data.user.identities.length === 0) {
-      setError("هذا البريد مسجّل مسبقاً — سجّل الدخول بدلاً من ذلك");
+    if (!res.ok || !d.success) {
+      setError(d.error ?? "تعذّر إنشاء الحساب — حاول مجدداً");
       return;
     }
 

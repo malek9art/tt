@@ -52,8 +52,23 @@ export async function POST(request: NextRequest) {
     });
     if (dbErr) return NextResponse.json({ error: "خطأ في الخادم" }, { status: 500 });
 
-    const waResult = await sendWhatsAppOtp(phone, code);
+    // محاولة واحدة أولى، وإعادة محاولة واحدة بعد تأخير قصير عند فشل المزوّد
+    // (وليس عند "not_configured" — إعادة المحاولة لن تُصلح غياب الإعداد)
+    let waResult = await sendWhatsAppOtp(phone, code);
+    if (!waResult.success && waResult.code === "provider_error") {
+      await new Promise(r => setTimeout(r, 1200));
+      waResult = await sendWhatsAppOtp(phone, code);
+    }
+
     if (!waResult.success) {
+      const provider = (process.env.WHATSAPP_PROVIDER ?? "fonnte").toLowerCase();
+      await supabase.from("provider_errors").insert({
+        provider,
+        context:    "phone_otp_send",
+        identifier: phone,
+        error:      waResult.error ?? "unknown error",
+      });
+
       if (waResult.code === "not_configured") {
         console.error("WhatsApp not configured on server:", waResult.error);
         return NextResponse.json(
