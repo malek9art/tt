@@ -38,7 +38,7 @@ export default function ProfilePage() {
     if (!userId) return;
     setSaving(true); setError(""); setSaved(false);
     const { error: dbErr } = await sb.from("profiles")
-      .update({ full_name: form.full_name.trim(), phone: form.phone.trim() })
+      .update({ full_name: form.full_name.trim() })
       .eq("id", userId);
     if (dbErr) setError(dbErr.message);
     else { setSaved(true); setTimeout(() => setSaved(false), 3000); }
@@ -92,10 +92,10 @@ export default function ProfilePage() {
                 <label className="mb-1.5 block text-sm font-medium text-[var(--text-2)]">رقم الهاتف</label>
                 <div className="relative">
                   <Phone size={15} className="absolute top-3 end-3 text-[var(--text-muted)]"/>
-                  <input type="tel" dir="ltr" placeholder="+967 7XX XXX XXX" value={form.phone}
-                    onChange={e=>setForm(f=>({...f,phone:e.target.value}))}
-                    className={iCls+" pe-9"}/>
+                  <input type="tel" dir="ltr" value={form.phone} disabled
+                    className={iCls+" pe-9 opacity-60 cursor-not-allowed"}/>
                 </div>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">لا يمكن تغيير رقم الجوال من هنا — تواصل مع الدعم الفني لتغييره</p>
               </div>
 
               <div>
