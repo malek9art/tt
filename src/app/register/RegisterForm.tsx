@@ -8,16 +8,17 @@ import Footer from "@/components/layout/Footer";
 import OtpInput from "@/components/ui/OtpInput";
 import {
   HiEnvelope, HiUser, HiShieldCheck, HiCheckCircle, HiArrowLeft,
-  HiArrowPath, HiDevicePhoneMobile,
+  HiArrowPath, HiDevicePhoneMobile, HiEye, HiEyeSlash, HiLockClosed,
 } from "react-icons/hi2";
 import { useAuthStore } from "@/store/authStore";
+import { validatePassword } from "@/lib/auth-validation";
 
 const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-type Step = "form" | "otp" | "done";
+type Step = "form" | "otp" | "check-email" | "done";
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -29,7 +30,10 @@ export default function RegisterForm() {
   const [error,     setError]     = useState("");
   const [cooldown,  setCooldown]  = useState(0);
   const [method,    setMethod]    = useState<"email" | "phone">("email");
-  const [form, setForm] = useState({ full_name: "", email: "", phone: "" });
+  const [showPw,    setShowPw]    = useState(false);
+  const [form, setForm] = useState({ full_name: "", email: "", phone: "", password: "", confirm: "" });
+  const [phonePassword, setPhonePassword]        = useState("");
+  const [phonePasswordConfirm, setPhonePasswordConfirm] = useState("");
 
   useEffect(() => {
     if (user) router.replace("/account");
@@ -44,61 +48,43 @@ export default function RegisterForm() {
 
   const setF = (k: string, v: string) => { setForm(f => ({ ...f, [k]: v })); setError(""); };
 
-  // Step 1: send OTP
-  const sendOtp = async () => {
+  // مسار البريد: إنشاء حساب مباشرة بكلمة مرور + رابط تأكيد
+  const signUpEmail = async () => {
     if (!form.full_name.trim()) { setError("أدخل اسمك الكامل"); return; }
     if (!form.email.includes("@")) { setError("بريد إلكتروني غير صحيح"); return; }
+    if (form.password !== form.confirm) { setError("كلمتا المرور غير متطابقتين"); return; }
+    const pwCheck = validatePassword(form.password);
+    if (!pwCheck.valid) { setError(pwCheck.error!); return; }
 
     setLoading(true); setError("");
 
-    const { error: err } = await supabase.auth.signInWithOtp({
+    const { data, error: err } = await supabase.auth.signUp({
       email: form.email.trim().toLowerCase(),
+      password: form.password,
       options: {
-        shouldCreateUser: true,
         data: { full_name: form.full_name.trim() },
-        // لا emailRedirectTo — نستخدم رمز OTP فقط، لا روابط
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=%2Faccount`,
       },
     });
 
     setLoading(false);
+
     if (err) {
-      setError("تعذّر الإرسال — تحقق من البريد وحاول مجدداً");
-    } else {
-      setStep("otp");
-      setCooldown(60);
+      setError("تعذّر إنشاء الحساب — حاول مجدداً");
+      return;
     }
-  };
 
-  // Step 2: verify OTP
-  const verifyOtp = async (code: string) => {
-    setVerifying(true); setError("");
-
-    const { error: err } = await supabase.auth.verifyOtp({
-      email: form.email.trim().toLowerCase(),
-      token: code,
-      type:  "email",
-    });
-
-    setVerifying(false);
-    if (err) {
-      setError("الرمز غير صحيح أو انتهت صلاحيته — أعد المحاولة");
-    } else {
-      setStep("done");
-      setTimeout(() => router.replace("/account"), 1500);
+    // Supabase لا يُرجع خطأً عند وجود البريد مسبقاً (لمنع تعداد البريد) —
+    // بدلاً من ذلك يُرجع مستخدماً وهمياً بدون هويات (identities)
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      setError("هذا البريد مسجّل مسبقاً — سجّل الدخول بدلاً من ذلك");
+      return;
     }
+
+    setStep("check-email");
   };
 
-  const resend = async () => {
-    if (cooldown > 0) return;
-    setError("");
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email: form.email.trim().toLowerCase(),
-      options: { shouldCreateUser: true, data: { full_name: form.full_name.trim() } },
-    });
-    if (!err) setCooldown(60);
-    else setError("تعذّر إعادة الإرسال");
-  };
-
+  // مسار الجوال: خطوة 1 — إرسال رمز واتساب
   const sendPhoneOtp = async () => {
     if (!form.full_name.trim()) { setError("أدخل اسمك الكامل"); return; }
     if (form.phone.replace(/\D/g, "").length < 9) { setError("أدخل رقم جوال صحيح"); return; }
@@ -114,12 +100,23 @@ export default function RegisterForm() {
     setStep("otp"); setCooldown(60);
   };
 
+  // مسار الجوال: خطوة 2 — التحقق من الرمز + تفعيل كلمة المرور
   const verifyPhoneOtp = async (code: string) => {
+    if (phonePassword !== phonePasswordConfirm) { setError("كلمتا المرور غير متطابقتين"); return; }
+    const pwCheck = validatePassword(phonePassword);
+    if (!pwCheck.valid) { setError(pwCheck.error!); return; }
+
     setVerifying(true); setError("");
     const res = await fetch("/api/auth/phone/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: form.phone.trim(), code, full_name: form.full_name.trim() }),
+      body: JSON.stringify({
+        phone: form.phone.trim(),
+        code,
+        full_name: form.full_name.trim(),
+        password: phonePassword,
+        mode: "signup",
+      }),
     });
     const d = await res.json();
     if (!res.ok || !d.success) {
@@ -163,9 +160,10 @@ export default function RegisterForm() {
               {step === "done" ? "مرحباً بك! 🎉" : "إنشاء حساب جديد"}
             </h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              {step === "form" && "سجّل للتسوق وتتبع طلباتك"}
-              {step === "otp"  && `أدخل الرمز المُرسل إلى ${method === "email" ? form.email : form.phone}`}
-              {step === "done" && "جارٍ تحويلك لحسابك..."}
+              {step === "form"        && "سجّل للتسوق وتتبع طلباتك"}
+              {step === "otp"         && `أدخل الرمز المُرسل إلى ${form.phone}`}
+              {step === "check-email" && "تحقق من بريدك لتفعيل الحساب"}
+              {step === "done"        && "جارٍ تحويلك لحسابك..."}
             </p>
           </div>
 
@@ -177,6 +175,20 @@ export default function RegisterForm() {
                 <HiCheckCircle className="mx-auto mb-4 text-6xl text-green-500" />
                 <p className="font-bold text-lg text-[var(--text-1)]">تم إنشاء حسابك بنجاح</p>
                 <p className="text-sm text-[var(--text-muted)] mt-2">جارٍ تحويلك...</p>
+              </div>
+            )}
+
+            {/* ── Step: check-email ── */}
+            {step === "check-email" && (
+              <div className="py-8 text-center space-y-3">
+                <HiEnvelope className="mx-auto text-6xl text-brand-700" />
+                <p className="font-bold text-lg text-[var(--text-1)]">تم إرسال رابط التفعيل</p>
+                <p className="text-sm text-[var(--text-muted)]">
+                  افتح الرسالة المُرسلة إلى <span className="font-semibold" dir="ltr">{form.email}</span> واضغط على الرابط لتفعيل حسابك.
+                </p>
+                <p className="text-xs text-[var(--text-muted)]">
+                  لم تصلك الرسالة؟ تحقق من مجلد الرسائل غير المرغوب فيها (Spam)
+                </p>
               </div>
             )}
 
@@ -202,6 +214,11 @@ export default function RegisterForm() {
                 {error && (
                   <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 p-3 text-sm text-red-600 dark:text-red-400">
                     ⚠ {error}
+                    {error.includes("مسجّل مسبقاً") && (
+                      <Link href="/login" className="block mt-1.5 font-medium text-brand-700 dark:text-accent-400 hover:underline">
+                        تسجيل الدخول ←
+                      </Link>
+                    )}
                   </div>
                 )}
 
@@ -212,23 +229,45 @@ export default function RegisterForm() {
                     <input type="text" placeholder="محمد أحمد"
                       value={form.full_name}
                       onChange={e => setF("full_name", e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && sendOtp()}
                       className={`${iCls} pe-9`} autoComplete="name" />
                   </div>
                 </div>
 
                 {method === "email" ? (
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">البريد الإلكتروني *</label>
-                    <div className="relative">
-                      <HiEnvelope className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]" />
-                      <input type="email" dir="ltr" placeholder="example@gmail.com"
-                        value={form.email}
-                        onChange={e => setF("email", e.target.value)}
-                        onKeyDown={e => e.key === "Enter" && sendOtp()}
-                        className={`${iCls} pe-9`} autoComplete="email" />
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">البريد الإلكتروني *</label>
+                      <div className="relative">
+                        <HiEnvelope className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]" />
+                        <input type="email" dir="ltr" placeholder="example@gmail.com"
+                          value={form.email}
+                          onChange={e => setF("email", e.target.value)}
+                          className={`${iCls} pe-9`} autoComplete="email" />
+                      </div>
                     </div>
-                  </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">كلمة المرور *</label>
+                      <div className="relative">
+                        <HiLockClosed className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]" />
+                        <input type={showPw ? "text" : "password"} dir="ltr" placeholder="••••••••"
+                          value={form.password}
+                          onChange={e => setF("password", e.target.value)}
+                          className={`${iCls} pe-9 ps-10`} autoComplete="new-password" />
+                        <button type="button" onClick={() => setShowPw(!showPw)}
+                          className="absolute top-3.5 start-3 text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                          {showPw ? <HiEyeSlash/> : <HiEye/>}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">تأكيد كلمة المرور *</label>
+                      <input type={showPw ? "text" : "password"} dir="ltr" placeholder="••••••••"
+                        value={form.confirm}
+                        onChange={e => setF("confirm", e.target.value)}
+                        onKeyDown={e => e.key === "Enter" && signUpEmail()}
+                        className={iCls} autoComplete="new-password" />
+                    </div>
+                  </>
                 ) : (
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">رقم الجوال *</label>
@@ -243,34 +282,38 @@ export default function RegisterForm() {
                   </div>
                 )}
 
-                <button onClick={method === "email" ? sendOtp : sendPhoneOtp}
-                  disabled={loading || !form.full_name || (method === "email" ? !form.email : !form.phone)}
+                <button onClick={method === "email" ? signUpEmail : sendPhoneOtp}
+                  disabled={loading || !form.full_name || (
+                    method === "email"
+                      ? (!form.email || !form.password || !form.confirm)
+                      : !form.phone
+                  )}
                   className="btn-primary w-full justify-center py-3">
                   {loading
                     ? <><span className="animate-spin inline-block mr-2">⏳</span> جارٍ الإرسال...</>
-                    : <>إرسال رمز التأكيد <HiArrowLeft className="text-base" /></>}
+                    : method === "email"
+                      ? <>إنشاء الحساب <HiArrowLeft className="text-base" /></>
+                      : <>إرسال رمز التحقق <HiArrowLeft className="text-base" /></>}
                 </button>
 
                 <div className="flex items-start gap-2 rounded-xl bg-[var(--bg-page)] border border-[var(--border)] p-3 text-xs text-[var(--text-muted)]">
                   <HiShieldCheck className="shrink-0 text-brand-700 text-base mt-0.5" />
                   {method === "email"
-                    ? "ستصلك رسالة تحتوي على رمز مكوّن من 6 أرقام. لا كلمة مرور مطلوبة."
-                    : "سيصلك رمز مكوّن من 6 أرقام عبر واتساب. لا كلمة مرور مطلوبة."}
+                    ? "سيصلك رابط تفعيل عبر البريد لتأكيد حسابك."
+                    : "سيصلك رمز تحقق مكوّن من 6 أرقام عبر واتساب لتأكيد الرقم قبل تفعيل كلمة المرور."}
                 </div>
               </div>
             )}
 
-            {/* ── Step: otp ── */}
+            {/* ── Step: otp (phone only) ── */}
             {step === "otp" && (
               <div className="space-y-6">
-                {/* Email display */}
+                {/* Phone display */}
                 <div className="flex items-center gap-3 rounded-xl bg-[var(--bg-page)] border border-[var(--border)] px-4 py-3">
-                  {method === "email"
-                    ? <HiEnvelope className="text-brand-700 text-lg shrink-0" />
-                    : <HiDevicePhoneMobile className="text-brand-700 text-lg shrink-0" />}
+                  <HiDevicePhoneMobile className="text-brand-700 text-lg shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-[var(--text-muted)]">تم إرسال الرمز إلى</p>
-                    <p className="text-sm font-semibold text-[var(--text-1)] truncate" dir="ltr">{method === "email" ? form.email : form.phone}</p>
+                    <p className="text-sm font-semibold text-[var(--text-1)] truncate" dir="ltr">{form.phone}</p>
                   </div>
                   <button onClick={() => { setStep("form"); setError(""); }}
                     className="text-xs text-brand-700 dark:text-accent-400 hover:underline shrink-0">
@@ -278,13 +321,42 @@ export default function RegisterForm() {
                   </button>
                 </div>
 
+                {/* Password fields — تُعبَّأ قبل الرمز حتى لا يُرسَل التحقق قبل اكتمالها */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">كلمة المرور *</label>
+                    <div className="relative">
+                      <HiLockClosed className="absolute top-3.5 end-3 text-sm text-[var(--text-muted)]" />
+                      <input type={showPw ? "text" : "password"} dir="ltr" placeholder="••••••••"
+                        value={phonePassword}
+                        onChange={e => { setPhonePassword(e.target.value); setError(""); }}
+                        className={`${iCls} pe-9 ps-10`} autoComplete="new-password" />
+                      <button type="button" onClick={() => setShowPw(!showPw)}
+                        className="absolute top-3.5 start-3 text-[var(--text-muted)] hover:text-[var(--text-1)]">
+                        {showPw ? <HiEyeSlash/> : <HiEye/>}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">تأكيد كلمة المرور *</label>
+                    <input type={showPw ? "text" : "password"} dir="ltr" placeholder="••••••••"
+                      value={phonePasswordConfirm}
+                      onChange={e => { setPhonePasswordConfirm(e.target.value); setError(""); }}
+                      className={iCls} autoComplete="new-password" />
+                  </div>
+                </div>
+
                 {/* OTP boxes */}
                 <div className="space-y-2">
-                  <p className="text-center text-sm font-medium text-[var(--text-2)]">أدخل الرمز المكوّن من 6 أرقام</p>
+                  <p className="text-center text-sm font-medium text-[var(--text-2)]">
+                    {phonePassword && phonePasswordConfirm
+                      ? "أدخل الرمز المكوّن من 6 أرقام لإكمال إنشاء الحساب"
+                      : "عبّئ كلمة المرور أعلاه أولاً، ثم أدخل الرمز المكوّن من 6 أرقام"}
+                  </p>
                   <OtpInput
                     length={6}
-                    onComplete={method === "email" ? verifyOtp : verifyPhoneOtp}
-                    disabled={verifying}
+                    onComplete={verifyPhoneOtp}
+                    disabled={verifying || !phonePassword || !phonePasswordConfirm}
                     autoFocus
                   />
                 </div>
@@ -310,7 +382,7 @@ export default function RegisterForm() {
                       إعادة إرسال بعد <span className="font-bold text-brand-700 dark:text-accent-400">{cooldown}</span> ثانية
                     </p>
                   ) : (
-                    <button onClick={method === "email" ? resend : resendPhone}
+                    <button onClick={resendPhone}
                       className="flex items-center gap-1.5 mx-auto text-sm text-brand-700 dark:text-accent-400 hover:underline">
                       <HiArrowPath className="text-base" /> إعادة إرسال الرمز
                     </button>
@@ -320,15 +392,14 @@ export default function RegisterForm() {
                 {/* Hint */}
                 <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
                   <p className="font-semibold">💡 لم يصلك الرمز؟</p>
-                  <p>• تحقق من مجلد <strong>الرسائل غير المرغوب فيها (Spam)</strong></p>
-                  <p>• الرمز صالح لمدة <strong>ساعة واحدة</strong></p>
+                  <p>• الرمز صالح لمدة <strong>10 دقائق</strong></p>
                   <p>• يمكنك إعادة الإرسال بعد انتهاء العداد</p>
                 </div>
               </div>
             )}
           </div>
 
-          {step === "form" && (
+          {(step === "form" || step === "otp") && (
             <p className="mt-4 text-center text-sm text-[var(--text-muted)]">
               لديك حساب؟{" "}
               <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900 dark:text-accent-400 transition-colors">
