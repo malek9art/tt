@@ -243,11 +243,6 @@ export default function ForgotPasswordPage() {
                   </button>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-center text-sm font-medium text-[var(--text-2)]">أدخل الرمز المكوّن من 6 أرقام</p>
-                  <OtpInput length={6} onComplete={verifyAndReset} disabled={verifying} autoFocus />
-                </div>
-
                 <div className="space-y-3">
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">كلمة المرور الجديدة *</label>
@@ -269,7 +264,15 @@ export default function ForgotPasswordPage() {
                       onChange={e => { setNewPasswordConfirm(e.target.value); setError(""); }}
                       className={iCls} autoComplete="new-password" />
                   </div>
-                  <p className="text-xs text-[var(--text-muted)]">أدخل الرمز أعلاه لإكمال تحديث كلمة المرور بعد تعبئتها.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-center text-sm font-medium text-[var(--text-2)]">
+                    {newPassword && newPasswordConfirm
+                      ? "أدخل الرمز المكوّن من 6 أرقام لإكمال تحديث كلمة المرور"
+                      : "عبّئ كلمة المرور الجديدة أعلاه أولاً، ثم أدخل الرمز المكوّن من 6 أرقام"}
+                  </p>
+                  <OtpInput length={6} onComplete={verifyAndReset} disabled={verifying || !newPassword || !newPasswordConfirm} autoFocus />
                 </div>
 
                 {error && (

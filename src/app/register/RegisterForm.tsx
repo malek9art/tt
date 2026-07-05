@@ -61,7 +61,10 @@ export default function RegisterForm() {
     const { data, error: err } = await supabase.auth.signUp({
       email: form.email.trim().toLowerCase(),
       password: form.password,
-      options: { data: { full_name: form.full_name.trim() } },
+      options: {
+        data: { full_name: form.full_name.trim() },
+        emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=%2Faccount`,
+      },
     });
 
     setLoading(false);
@@ -318,18 +321,7 @@ export default function RegisterForm() {
                   </button>
                 </div>
 
-                {/* OTP boxes */}
-                <div className="space-y-2">
-                  <p className="text-center text-sm font-medium text-[var(--text-2)]">أدخل الرمز المكوّن من 6 أرقام</p>
-                  <OtpInput
-                    length={6}
-                    onComplete={verifyPhoneOtp}
-                    disabled={verifying}
-                    autoFocus
-                  />
-                </div>
-
-                {/* Password fields */}
+                {/* Password fields — تُعبَّأ قبل الرمز حتى لا يُرسَل التحقق قبل اكتمالها */}
                 <div className="space-y-3">
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-[var(--text-2)]">كلمة المرور *</label>
@@ -352,7 +344,21 @@ export default function RegisterForm() {
                       onChange={e => { setPhonePasswordConfirm(e.target.value); setError(""); }}
                       className={iCls} autoComplete="new-password" />
                   </div>
-                  <p className="text-xs text-[var(--text-muted)]">أدخل الرمز أعلاه لإكمال إنشاء الحساب بعد تعبئة كلمة المرور.</p>
+                </div>
+
+                {/* OTP boxes */}
+                <div className="space-y-2">
+                  <p className="text-center text-sm font-medium text-[var(--text-2)]">
+                    {phonePassword && phonePasswordConfirm
+                      ? "أدخل الرمز المكوّن من 6 أرقام لإكمال إنشاء الحساب"
+                      : "عبّئ كلمة المرور أعلاه أولاً، ثم أدخل الرمز المكوّن من 6 أرقام"}
+                  </p>
+                  <OtpInput
+                    length={6}
+                    onComplete={verifyPhoneOtp}
+                    disabled={verifying || !phonePassword || !phonePasswordConfirm}
+                    autoFocus
+                  />
                 </div>
 
                 {/* Error */}
