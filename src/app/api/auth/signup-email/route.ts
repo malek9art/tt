@@ -52,15 +52,21 @@ export async function POST(request: NextRequest) {
     });
 
     if (err) {
-      // نسجّل رسالة Supabase الحقيقية (rate limit، مُرسِل البريد معطّل، إلخ) —
-      // هذه بالضبط الرسالة التي كانت تضيع خلف "تعذّر إنشاء الحساب" العامة
+      // نسجّل كل تفاصيل الخطأ المتاحة — err.message وحده قد يكون فارغاً
+      // ("{}") عند فشل غير مُهيكَل من خادم Supabase Auth (مثال: عطل SMTP)
+      const errorDetail = JSON.stringify({
+        message: err.message,
+        name:    err.name,
+        status:  err.status,
+        code:    (err as unknown as { code?: string }).code,
+      });
       await svc().from("provider_errors").insert({
         provider:   "supabase_auth",
         context:    "email_signup",
         identifier: email,
-        error:      err.message,
+        error:      errorDetail,
       });
-      console.error("signup-email error:", err.message);
+      console.error("signup-email error:", errorDetail);
       return NextResponse.json({ error: "تعذّر إنشاء الحساب — حاول مجدداً بعد قليل" }, { status: 500 });
     }
 
