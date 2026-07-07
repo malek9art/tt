@@ -3,17 +3,12 @@ import { useEffect, useState, useCallback } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { Plus, Trash2, MapPin, Loader2, Star } from "lucide-react";
 import LocationPicker, { type GeoPoint } from "@/components/map/LocationPicker";
+import { GOVERNORATES as YEMENI_GOVS } from "@/lib/governorates";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
-
-const YEMENI_GOVS = [
-  "أمانة العاصمة","صنعاء","عدن","تعز","الحديدة","إب","ذمار","حضرموت",
-  "شبوة","مأرب","الجوف","البيضاء","ريمة","المحويت","حجة","صعدة",
-  "عمران","لحج","أبين","الضالع","المهرة","سقطرى",
-];
 
 interface Address {
   id: string;

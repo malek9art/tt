@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { notifyNewOrder } from "@/lib/notifications";
 import { checkStockAvailability, applyOrderStock } from "@/lib/admin/stock";
 import { checkRateLimit, requestIp } from "@/lib/rate-limit";
+
+// عميل service-role للتراجع فقط — جلسة العميل لا تملك صلاحية DELETE على
+// orders/order_items (ولا يجب أن تملكها)، فتفشل عملية التراجع بصمت إن
+// استُخدمت جلسة العميل نفسها، تاركةً طلباً معطوباً عالقاً في القاعدة
+function serviceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } },
+  );
+}
 
 interface OrderItem {
   product_id:     string;
@@ -227,10 +239,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "فشل في إنشاء الطلب" }, { status: 500 });
     }
 
-    // تراجع كامل عن الطلب (وتحرير حجز الكوبون إن وُجد) عند فشل أي خطوة تالية
+    // تراجع كامل عن الطلب (وتحرير حجز الكوبون إن وُجد) عند فشل أي خطوة تالية —
+    // عبر عميل service-role لأن جلسة العميل لا تملك صلاحية DELETE على هذه الجداول
     const rollbackOrder = async () => {
-      await supabase.from("order_items").delete().eq("order_id", order.id);
-      await supabase.from("orders").delete().eq("id", order.id);
+      const svc = serviceClient();
+      await svc.from("payments").delete().eq("order_id", order.id);
+      await svc.from("shipments").delete().eq("order_id", order.id);
+      await svc.from("order_items").delete().eq("order_id", order.id);
+      await svc.from("orders").delete().eq("id", order.id);
       if (couponId) await supabase.rpc("release_coupon_use", { p_coupon_id: couponId });
     };
 
@@ -298,7 +314,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (shipmentError) {
-      await supabase.from("payments").delete().eq("order_id", order.id);
       await rollbackOrder();
       console.error("Shipment insert error:", shipmentError);
       return NextResponse.json({ error: "فشل في تسجيل الشحنة" }, { status: 500 });

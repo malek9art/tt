@@ -18,18 +18,14 @@ import {
 import type { PaymentInstruction } from "@/lib/payment/types";
 import LocationPicker, { type GeoPoint } from "@/components/map/LocationPicker";
 import ReceiptAttach from "@/components/payment/ReceiptAttach";
+import { GOVERNORATES } from "@/lib/governorates";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const GOVS = [
-  "أمانة العاصمة","صنعاء","عدن","تعز","الحديدة","إب",
-  "ذمار","حضرموت","شبوة","مأرب","الجوف","البيضاء",
-  "ريمة","المحويت","حجة","صعدة","عمران","لحج",
-  "أبين","الضالع","المهرة","سقطرى",
-];
+const GOVS = GOVERNORATES;
 
 type Step = "info" | "payment" | "processing" | "confirm";
 

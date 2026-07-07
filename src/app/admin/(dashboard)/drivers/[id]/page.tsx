@@ -8,6 +8,7 @@ import {
   Package, CheckCircle, XCircle, Clock,
   Save, Loader2, ToggleLeft, ToggleRight, Trash2
 } from "lucide-react";
+import { GOVERNORATES as GOVS } from "@/lib/governorates";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,11 +30,6 @@ const VEHICLES = [
   { value:"car",       label:"سيارة 🚗" },
   { value:"bicycle",   label:"دراجة هوائية 🚲" },
   { value:"walking",   label:"مشياً 🚶" },
-];
-
-const GOVS = [
-  "أمانة العاصمة","صنعاء","عدن","تعز","الحديدة","إب",
-  "ذمار","حضرموت","شبوة","مأرب","حجة","صعدة","عمران","لحج",
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
