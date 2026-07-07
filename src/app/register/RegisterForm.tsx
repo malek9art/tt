@@ -405,7 +405,7 @@ export default function RegisterForm() {
                 <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1">
                   <p className="font-semibold">💡 لم يصلك الرمز؟</p>
                   {method === "email" && (
-                    <p>• تحقق من مجلد الرسائل غير المرغوب فيها (Spam)</p>
+                    <p>• غالباً ما تصل الرسالة إلى مجلد الرسائل غير المرغوب فيها (Spam) — افتحها وحرّك الرسالة إلى البريد الوارد الرئيسي (Move to Inbox) حتى تصلك الرسائل القادمة مباشرة</p>
                   )}
                   <p>• الرمز صالح لمدة <strong>{method === "email" ? "ساعة واحدة" : "10 دقائق"}</strong></p>
                   <p>• يمكنك إعادة الإرسال بعد انتهاء العداد</p>

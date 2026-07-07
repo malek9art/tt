@@ -168,7 +168,7 @@ export default function ForgotPasswordPage() {
                     افتح الرسالة المُرسلة إلى <span className="font-semibold" dir="ltr">{email}</span> واضغط على الرابط لتعيين كلمة مرور جديدة.
                   </p>
                   <p className="text-xs text-[var(--text-muted)]">
-                    لم تصلك الرسالة؟ تحقق من مجلد الرسائل غير المرغوب فيها (Spam)
+                    لم تصلك الرسالة؟ غالباً ما تصل إلى مجلد الرسائل غير المرغوب فيها (Spam) — افتحها وحرّك الرسالة إلى البريد الوارد الرئيسي (Move to Inbox)
                   </p>
                 </div>
               ) : (

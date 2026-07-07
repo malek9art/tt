@@ -407,6 +407,20 @@ export const PaymentGateway = {
   },
 
   /**
+   * معاينة تفاصيل الدفع (رقم الحساب/المحفظة، نقاط التحويل...) لطريقة دفع
+   * معيّنة قبل إنشاء الطلب فعلياً — لا يكتب أي سجل في قاعدة البيانات
+   * (initiate() الخاص بكل مزوّد دالة نقية، تُبنى من الإعداد المخزَّن فقط).
+   */
+  async previewInstruction(providerCode: string, amount: number, currency: string) {
+    const provider = await buildProvider(providerCode);
+    if (!provider) return null;
+    const result = await provider.initiate({
+      orderId: "", orderNumber: "سيُنشأ بعد تأكيد الطلب", amount, currency, providerCode,
+    });
+    return result.instruction;
+  },
+
+  /**
    * Get active providers list for checkout UI.
    */
   async getActiveProviders() {
