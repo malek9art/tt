@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Settings, CreditCard, Shield, Bell, Store, Palette, ArrowLeft, KeyRound } from "lucide-react";
+import { Settings, CreditCard, Shield, Bell, Store, Palette, ArrowLeft, KeyRound, Truck } from "lucide-react";
 
 export const metadata = { title: "الإعدادات" };
 
@@ -16,6 +16,13 @@ const sections = [
     title: "وسائل الدفع",
     desc:  "تفعيل وإدارة COD، جوالي، فلوسك، Stripe",
     href:  "/admin/settings/payment-providers",
+    ready: true,
+  },
+  {
+    icon:  Truck,
+    title: "رسوم الشحن",
+    desc:  "تحديد رسوم الشحن حسب المحافظة وفئة المنتج",
+    href:  "/admin/settings/shipping",
     ready: true,
   },
   {
