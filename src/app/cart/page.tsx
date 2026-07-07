@@ -40,7 +40,7 @@ export default function CartPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid gap-8 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             {/* قائمة المنتجات */}
             <div className="lg:col-span-2 space-y-4">
               {items.map(item => (
@@ -55,12 +55,12 @@ export default function CartPage() {
                         {item.name_ar}
                       </h3>
                       {Object.keys(item.attributes).length > 0 && (
-                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5 break-words">
                           {Object.values(item.attributes).join(" / ")}
                         </p>
                       )}
                       {item.sku && (
-                        <p className="text-xs text-[var(--text-muted)]">SKU: {item.sku}</p>
+                        <p className="text-xs text-[var(--text-muted)] break-all">SKU: {item.sku}</p>
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
@@ -122,7 +122,7 @@ export default function CartPage() {
                 <div className="mt-4">
                   <div className="flex gap-2">
                     <input type="text" placeholder="كود الخصم"
-                      className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors" />
+                      className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 transition-colors" />
                     <button className="btn-ghost border border-[var(--border)] text-sm px-3 py-2">تطبيق</button>
                   </div>
                 </div>

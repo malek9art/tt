@@ -109,8 +109,8 @@ function CopyButton({ text }: { text: string }) {
 
 // ── Payment Instructions Renderer ────────────────────
 function PaymentInstructions({
-  instruction, orderNumber, amount,
-}: { instruction: PaymentInstruction; orderNumber: string; amount: number }) {
+  instruction, orderNumber, amount, preview = false,
+}: { instruction: PaymentInstruction; orderNumber?: string; amount: number; preview?: boolean }) {
   const extra = instruction.extra as Record<string, unknown> | undefined;
   const points = (extra?.points ?? []) as TransferPoint[];
   const networkName = extra?.networkName as string | undefined;
@@ -158,7 +158,7 @@ function PaymentInstructions({
               className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--bg-page)] px-4 py-3 gap-3">
               <div className="min-w-0">
                 <p className="text-xs text-[var(--text-muted)]">{acc.label} ({acc.currency})</p>
-                <p className="font-bold text-brand-700 dark:text-accent-400 tracking-wider" dir="ltr">{acc.number}</p>
+                <p className="font-bold text-brand-700 dark:text-accent-400 tracking-wider break-all" dir="ltr">{acc.number}</p>
               </div>
               <CopyButton text={acc.number} />
             </div>
@@ -179,7 +179,7 @@ function PaymentInstructions({
             <span className="text-xs text-[var(--text-muted)]">رقم الحساب / المحفظة</span>
             <CopyButton text={instruction.accountNumber} />
           </div>
-          <p className="text-xl font-bold text-brand-700 dark:text-accent-400 tracking-wider" dir="ltr">
+          <p className="text-xl font-bold text-brand-700 dark:text-accent-400 tracking-wider break-all" dir="ltr">
             {instruction.accountNumber}
           </p>
           {instruction.accountName && (
@@ -189,13 +189,20 @@ function PaymentInstructions({
       )}
 
       {/* رقم المرجع */}
-      <div className="flex items-center justify-between rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-page)] px-4 py-3">
-        <div>
+      {preview ? (
+        <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-page)] px-4 py-3">
           <p className="text-xs text-[var(--text-muted)]">رقم الطلب المرجعي</p>
-          <p className="font-bold text-[var(--text-1)]" dir="ltr">{orderNumber}</p>
+          <p className="text-sm text-[var(--text-2)]">سيُنشأ تلقائياً بعد تأكيد الطلب، وستحتاج لكتابته في بيان التحويل</p>
         </div>
-        <CopyButton text={orderNumber} />
-      </div>
+      ) : orderNumber && (
+        <div className="flex items-center justify-between rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-page)] px-4 py-3">
+          <div>
+            <p className="text-xs text-[var(--text-muted)]">رقم الطلب المرجعي</p>
+            <p className="font-bold text-[var(--text-1)]" dir="ltr">{orderNumber}</p>
+          </div>
+          <CopyButton text={orderNumber} />
+        </div>
+      )}
 
       {/* المبلغ */}
       <div className="flex items-center justify-between rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
@@ -274,6 +281,8 @@ export default function CheckoutPage() {
   const [coupon,         setCoupon]        = useState<Coupon|null>(null);
   const [couponLoading,  setCouponLoading] = useState(false);
   const [couponError,    setCouponError]   = useState("");
+  const [preview,        setPreview]       = useState<PaymentInstruction | null>(null);
+  const [previewLoading, setPreviewLoading]= useState(false);
 
   const [form, setForm] = useState({
     full_name:"", phone:"", governorate:"تعز",
@@ -314,6 +323,22 @@ export default function CheckoutPage() {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // معاينة تفاصيل الدفع (حساب/محفظة/نقاط تحويل) لطريقة الدفع المختارة —
+  // تظهر للعميل قبل تأكيد الطلب، دون إنشاء أي سجل دفع فعلي
+  useEffect(() => {
+    const p = providers.find(x => x.code === providerCode);
+    const isManual = p?.metadata?.confirmation === "manual";
+    if (!isManual) { setPreview(null); return; }
+
+    setPreviewLoading(true);
+    fetch(`/api/payments/preview?code=${encodeURIComponent(providerCode)}&amount=${totalPrice()}&currency=YER`)
+      .then(r => r.json())
+      .then(d => setPreview(d.instruction ?? null))
+      .catch(() => setPreview(null))
+      .finally(() => setPreviewLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerCode, providers]);
 
   const loadAddresses = useCallback(async () => {
     if (!user) return;
@@ -578,7 +603,7 @@ export default function CheckoutPage() {
         )}
 
         {step !== "confirm" && step !== "processing" && (
-          <div className="grid gap-8 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2 space-y-5">
 
               {/* ===== Step 1: Delivery Info ===== */}
@@ -823,6 +848,22 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
+                  {/* معاينة تفاصيل الدفع لطريقة الدفع اليدوية المختارة */}
+                  {previewLoading && (
+                    <div className="h-24 rounded-xl bg-[var(--border)] animate-pulse"/>
+                  )}
+                  {!previewLoading && preview && (
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-page)]/50 p-4 space-y-3">
+                      <h3 className="text-sm font-bold text-[var(--text-1)] flex items-center gap-2">
+                        <HiShieldCheck className="text-brand-700 dark:text-accent-400"/> تفاصيل الدفع لهذه الطريقة
+                      </h3>
+                      <PaymentInstructions instruction={preview} amount={total} preview/>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        هذه معاينة — سيُنشأ رقم مرجعي فعلي مخصص لطلبك بعد الضغط على "تأكيد الطلب"
+                      </p>
+                    </div>
+                  )}
+
                   {/* Coupon */}
                   <div className="border-t border-[var(--border)] pt-4">
                     <h3 className="text-sm font-semibold text-[var(--text-1)] mb-3 flex items-center gap-2">
@@ -845,7 +886,7 @@ export default function CheckoutPage() {
                         <input type="text" dir="ltr" placeholder="PROMO20" value={couponCode}
                           onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError(""); }}
                           onKeyDown={e => e.key === "Enter" && applyCoupon()}
-                          className={`${iCls} flex-1 uppercase`}/>
+                          className={`${iCls} min-w-0 flex-1 uppercase`}/>
                         <button onClick={applyCoupon} disabled={couponLoading || !couponCode}
                           className="btn-primary px-4 whitespace-nowrap">
                           {couponLoading ? <span className="animate-spin inline-block">⏳</span> : "تطبيق"}
