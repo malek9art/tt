@@ -17,8 +17,9 @@ const STEPS = [
  */
 export default function RepairServiceIntro() {
   const settings = useStoreSettings();
-  const whatsappHref = settings.whatsapp
-    ? `https://wa.me/${settings.whatsapp.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("مرحباً، أرغب بطلب صيانة لجهازي")}`
+  const maintenancePhone = settings.whatsapp_maintenance || settings.whatsapp;
+  const whatsappHref = maintenancePhone
+    ? `https://wa.me/${maintenancePhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("مرحباً، أرغب بطلب صيانة لجهازي")}`
     : null;
 
   return (

@@ -11,6 +11,7 @@ export interface StoreSettings {
   tagline:       string;
   phone:         string;
   whatsapp:      string;
+  whatsapp_maintenance: string;
   email:         string;
   address:       string;
   governorate:   string;
@@ -26,6 +27,7 @@ const DEFAULTS: StoreSettings = {
   tagline:       "جوالك بأفضل الأسعار",
   phone:         "",
   whatsapp:      "",
+  whatsapp_maintenance: "",
   email:         "info@ahmadi.ye",
   address:       "تعز، اليمن",
   governorate:   "تعز",
@@ -68,6 +70,7 @@ export function useStoreSettings(): StoreSettings {
           tagline:       map["tagline"]        || DEFAULTS.tagline,
           phone:         map["phone"]          || DEFAULTS.phone,
           whatsapp:      map["whatsapp"]       || DEFAULTS.whatsapp,
+          whatsapp_maintenance: map["whatsapp_maintenance"] || DEFAULTS.whatsapp_maintenance,
           email:         map["email"]          || DEFAULTS.email,
           address:       map["address"]        || DEFAULTS.address,
           governorate:   map["governorate"]    || DEFAULTS.governorate,

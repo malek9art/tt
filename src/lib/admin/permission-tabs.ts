@@ -16,6 +16,7 @@ export interface AdminTab {
 export const ADMIN_TABS: AdminTab[] = [
   { key: "dashboard",     label: "لوحة التحكم",          href: "/admin",               permissions: [] },
   { key: "products",      label: "المنتجات",             href: "/admin/products",      permissions: ["products:read", "products:manage", "products:delete"] },
+  { key: "categories",    label: "الفئات",                href: "/admin/categories",    permissions: ["products:read", "products:manage"] },
   { key: "orders",        label: "الطلبات",               href: "/admin/orders",        permissions: ["orders:read", "orders:manage"] },
   { key: "payments",      label: "المدفوعات",             href: "/admin/payments",      permissions: ["finance:read", "finance:manage"] },
   { key: "customers",     label: "العملاء",               href: "/admin/customers",     permissions: ["users:read"] },

@@ -6,7 +6,7 @@ import {
   HiSquares2X2, HiArchiveBox, HiShoppingBag, HiUsers,
   HiBuildingStorefront, HiTag, HiChartBar, HiTruck,
   HiCog6Tooth, HiChevronLeft, HiXMark, HiBars3, HiPhoto,
-  HiBell, HiBanknotes, HiUserGroup,
+  HiBell, HiBanknotes, HiUserGroup, HiFolder,
 } from "react-icons/hi2";
 import { useEffect, useState } from "react";
 import { ADMIN_TABS, hasAnyPermission, fetchUserPermissions } from "@/lib/admin/permission-tabs";
@@ -16,6 +16,7 @@ const ICONS: Record<string, React.ElementType> = {
   payments: HiBanknotes, customers: HiUsers, inventory: HiBuildingStorefront,
   analytics: HiChartBar, marketing: HiTag, banners: HiPhoto,
   notifications: HiBell, drivers: HiTruck, settings: HiCog6Tooth, users: HiUserGroup,
+  categories: HiFolder,
 };
 
 const sb = createBrowserClient(
