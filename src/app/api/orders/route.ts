@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     const variantIds = body.items.map(i => i.variant_id).filter((v): v is string => Boolean(v));
 
     const [{ data: dbProducts }, { data: dbVariants }] = await Promise.all([
-      supabase.from("products").select("id, base_price, status").in("id", productIds),
+      supabase.from("products").select("id, base_price, status, cod_eligible").in("id", productIds),
       variantIds.length
         ? supabase.from("product_variants").select("id, product_id, price, is_active").in("id", variantIds)
         : Promise.resolve({ data: [] as { id: string; product_id: string; price: number; is_active: boolean }[] }),
@@ -148,6 +148,17 @@ export async function POST(request: NextRequest) {
       }
       const quantity = Math.max(1, Math.floor(item.quantity));
       items.push({ ...item, price, quantity, subtotal: price * quantity });
+    }
+
+    // لا نثق باختيار المتصفح لطريقة الدفع أيضاً — منتج واحد غير مؤهَّل
+    // للدفع عند الاستلام يكفي لرفض الطلب بأكمله بهذه الطريقة
+    if ((body.payment_method || "cod") === "cod") {
+      const codBlocked = body.items.some(i => productMap.get(i.product_id)?.cod_eligible === false);
+      if (codBlocked) {
+        return NextResponse.json({
+          error: "الدفع عند الاستلام غير متاح لأحد المنتجات في سلتك — الرجاء اختيار وسيلة دفع أخرى",
+        }, { status: 400 });
+      }
     }
 
     // إيقاف البيع التلقائي عند نفاد المخزون

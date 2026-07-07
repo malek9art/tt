@@ -18,7 +18,7 @@ export default function EditProductPage() {
   const [error,   setError]   = useState("");
   const [form, setForm] = useState({
     name_ar:"", description:"", base_price:0,
-    status:"draft", is_featured:false, warranty:"",
+    status:"draft", is_featured:false, warranty:"", cod_eligible:true,
   });
 
   useEffect(() => {
@@ -34,6 +34,7 @@ export default function EditProductPage() {
         status:      String(p.status      ?? "draft"),
         is_featured: Boolean(p.is_featured ?? false),
         warranty:    String(p.warranty    ?? ""),
+        cod_eligible: Boolean(p.cod_eligible ?? true),
       });
       // تحويل صور DB لصيغة ImageUploader
       const dbImgs = (imgs as {url:string;alt_ar:string|null;is_primary:boolean}[]).map(img => ({
@@ -180,6 +181,12 @@ export default function EditProductPage() {
                 onChange={e=>setF("is_featured",e.target.checked)}
                 className="h-4 w-4 rounded text-brand-700"/>
               <span className="text-sm text-[var(--text-1)]">منتج مميّز</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.cod_eligible}
+                onChange={e=>setF("cod_eligible",e.target.checked)}
+                className="h-4 w-4 rounded text-brand-700"/>
+              <span className="text-sm text-[var(--text-1)]">يقبل الدفع عند الاستلام (COD)</span>
             </label>
           </div>
 
