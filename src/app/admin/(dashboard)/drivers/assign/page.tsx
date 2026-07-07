@@ -8,6 +8,7 @@ import {
   ArrowRight, Package, Truck, CheckCircle,
   Loader2, MapPin, Clock, User, AlertTriangle
 } from "lucide-react";
+import { FaWhatsapp } from "react-icons/fa6";
 
 const sb = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -180,6 +181,20 @@ function AssignContent() {
               <span>— {r.msg}</span>
             </div>
           ))}
+          {(() => {
+            const okOrders = results.filter(r => r.ok).map(r => r.order);
+            if (okOrders.length === 0 || !driver?.phone) return null;
+            const text = okOrders.length === 1
+              ? `مرحباً ${driver.full_name}، لديك طلبية جديدة #${okOrders[0]} — توجّه إلى مركز الأحمدي لبدء إجراءات التوصيل`
+              : `مرحباً ${driver.full_name}، لديك ${okOrders.length} طلبيات جديدة: ${okOrders.map(o => `#${o}`).join("، ")} — توجّه إلى مركز الأحمدي لبدء إجراءات التوصيل`;
+            const href = `https://wa.me/${driver.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(text)}`;
+            return (
+              <a href={href} target="_blank" rel="noreferrer"
+                className="btn-primary gap-2 bg-green-600 hover:bg-green-700 border-green-600 text-sm mt-2">
+                <FaWhatsapp className="text-base"/> إرسال إشعار واتساب لـ{driver.full_name}
+              </a>
+            );
+          })()}
           <button onClick={() => setResults([])} className="text-xs text-[var(--text-muted)] hover:text-brand-700 mt-2">
             إغلاق
           </button>
