@@ -214,12 +214,19 @@ export const PaymentGateway = {
 
     const { data: payment } = await sb
       .from("payments")
-      .select("id, order_id, provider_code, status")
+      .select("id, order_id, provider_code, status, receipt_url, customer_note, amount")
       .eq("id", req.paymentId)
       .single();
 
     if (!payment) return { success: false, status: "failed", error: "السجل غير موجود" };
     if (payment.status === "paid") return { success: true, status: "paid" };
+
+    // لا تأكيد بلا إثبات — يستثنى الدفع عند الاستلام (يُؤكَّد عبر تسليم
+    // المندوب فعلياً، لا إثبات تحويل له أصلاً)
+    if (payment.provider_code !== "cod" && !payment.receipt_url && !payment.customer_note) {
+      return { success: false, status: payment.status as PaymentStatus,
+        error: "لا يمكن تأكيد الدفعة قبل إرفاق إثبات التحويل (صورة الإيصال أو ملاحظة) من العميل أو المسؤول" };
+    }
 
     const provider = await buildProvider(payment.provider_code);
     let finalStatus: PaymentStatus = "paid";
@@ -246,6 +253,27 @@ export const PaymentGateway = {
     await this._log(payment.id, "confirm", payment.provider_code,
       { admin: req.adminUserId, ref: req.transactionRef },
       { status: finalStatus });
+
+    // تسجيل قيد في دفتر أستاذ المدفوعات — الدفع عند الاستلام له دفتره
+    // الخاص (driver_cash_ledger) عبر مسار مختلف بالكامل
+    if (finalStatus === "paid" && payment.provider_code !== "cod") {
+      const { data: providerRow } = await sb
+        .from("payment_providers")
+        .select("name, metadata")
+        .eq("code", payment.provider_code)
+        .maybeSingle();
+      const meta = (providerRow?.metadata ?? {}) as Record<string, string>;
+      await sb.from("payment_ledger").insert({
+        payment_id:           payment.id,
+        order_id:             payment.order_id,
+        provider_code:        payment.provider_code,
+        method_name_snapshot: meta.name_ar ?? providerRow?.name ?? payment.provider_code,
+        amount:                req.paidAmount ?? payment.amount,
+        receipt_url:           payment.receipt_url ?? null,
+        confirmed_by:          req.adminUserId,
+        note:                  req.notes ?? null,
+      });
+    }
 
     return { success: true, status: finalStatus };
   },

@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/authStore";
-import { LayoutDashboard, ClipboardList, User, LogOut } from "lucide-react";
+import { LayoutDashboard, ClipboardList, User, LogOut, Bell } from "lucide-react";
 
 export default function DriverShell({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
@@ -23,6 +23,7 @@ export default function DriverShell({ children }: { children: React.ReactNode })
   const nav = [
     { href:"/driver",        label:"الرئيسية", icon:LayoutDashboard, exact:true },
     { href:"/driver/orders", label:"الطلبات",  icon:ClipboardList },
+    { href:"/driver/notifications", label:"الإشعارات", icon:Bell },
     { href:"/driver/profile",label:"حسابي",    icon:User },
   ];
 

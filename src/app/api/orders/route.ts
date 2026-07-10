@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { notifyNewOrder } from "@/lib/notifications";
 import { checkStockAvailability, applyOrderStock } from "@/lib/admin/stock";
+import { resolveShippingFee } from "@/lib/shipping";
 import { checkRateLimit, requestIp } from "@/lib/rate-limit";
 
 // عميل service-role للتراجع فقط — جلسة العميل لا تملك صلاحية DELETE على
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
     const variantIds = body.items.map(i => i.variant_id).filter((v): v is string => Boolean(v));
 
     const [{ data: dbProducts }, { data: dbVariants }] = await Promise.all([
-      supabase.from("products").select("id, base_price, status").in("id", productIds),
+      supabase.from("products").select("id, base_price, status, cod_eligible, category_id").in("id", productIds),
       variantIds.length
         ? supabase.from("product_variants").select("id, product_id, price, is_active").in("id", variantIds)
         : Promise.resolve({ data: [] as { id: string; product_id: string; price: number; is_active: boolean }[] }),
@@ -150,6 +151,17 @@ export async function POST(request: NextRequest) {
       items.push({ ...item, price, quantity, subtotal: price * quantity });
     }
 
+    // لا نثق باختيار المتصفح لطريقة الدفع أيضاً — منتج واحد غير مؤهَّل
+    // للدفع عند الاستلام يكفي لرفض الطلب بأكمله بهذه الطريقة
+    if ((body.payment_method || "cod") === "cod") {
+      const codBlocked = body.items.some(i => productMap.get(i.product_id)?.cod_eligible === false);
+      if (codBlocked) {
+        return NextResponse.json({
+          error: "الدفع عند الاستلام غير متاح لأحد المنتجات في سلتك — الرجاء اختيار وسيلة دفع أخرى",
+        }, { status: 400 });
+      }
+    }
+
     // إيقاف البيع التلقائي عند نفاد المخزون
     const shortages = await checkStockAvailability(items.map(i => ({
       variant_id: i.variant_id, name_snapshot: i.name_snapshot, quantity: i.quantity,
@@ -170,7 +182,9 @@ export async function POST(request: NextRequest) {
     const freeAbove = rawFree
       ? Number(typeof rawFree === "string" ? rawFree.replace(/^"|"$/g, "") : rawFree)
       : 50000;
-    const shipping = subtotal >= freeAbove ? 0 : 2000;
+    const categoryIds = body.items.map(i => productMap.get(i.product_id)?.category_id ?? null);
+    const baseShipping = await resolveShippingFee(body.address.governorate, categoryIds);
+    const shipping = subtotal >= freeAbove ? 0 : baseShipping;
 
     // التحقق من الكوبون وحساب الخصم — الحجز الفعلي (increment_coupon_uses) ذرّي
     // ويحدث هنا قبل إنشاء الطلب، حتى لا يُطبَّق خصم لكوبون استُنفد للتو من

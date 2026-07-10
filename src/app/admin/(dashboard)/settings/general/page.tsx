@@ -24,6 +24,7 @@ const FIELDS = [
   // التواصل
   { key:"store.phone",    label:"رقم الهاتف",       icon:Phone,         group:"contact",  placeholder:"00967-777XXXXXX", dir:"ltr" },
   { key:"store.whatsapp", label:"واتساب",            icon:MessageSquare, group:"contact",  placeholder:"00967-777XXXXXX", dir:"ltr" },
+  { key:"store.whatsapp_maintenance", label:"واتساب الصيانة", icon:MessageSquare, group:"contact",  placeholder:"00967-777XXXXXX (اختياري)", dir:"ltr" },
   { key:"store.email",    label:"البريد الإلكتروني",icon:Mail,          group:"contact",  placeholder:"info@ahmadi.ye",   dir:"ltr" },
   { key:"store.working_hours",label:"أوقات الدوام", icon:Clock,         group:"contact",  placeholder:"9 صباحاً - 9 مساءً" },
   // الشبكات الاجتماعية

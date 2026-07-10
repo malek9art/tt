@@ -33,6 +33,16 @@ interface Payment {
   } | null;
 }
 
+interface LedgerEntry {
+  id: string;
+  provider_code: string;
+  method_name_snapshot: string | null;
+  amount: number;
+  receipt_url: string | null;
+  created_at: string;
+  orders: { order_number: string } | { order_number: string }[] | null;
+}
+
 interface PaymentLog {
   id: string;
   event_type: string;
@@ -90,6 +100,16 @@ export default function PaymentsPage() {
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
+
+  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  useEffect(() => {
+    sb.from("payment_ledger")
+      .select("id, provider_code, method_name_snapshot, amount, receipt_url, created_at, orders(order_number)")
+      .order("created_at", { ascending: false })
+      .limit(30)
+      .then(({ data }) => setLedger((data as LedgerEntry[]) ?? []));
+  }, []);
 
   const openConfirm = (p: Payment) => { setModal(p); setTxnRef(""); setReceipt(null); setPaidAmount(String(p.amount)); };
 
@@ -288,6 +308,41 @@ export default function PaymentsPage() {
           </table>
         </div>
       )}
+
+      {/* ── دفتر الأستاذ — سجل تأكيدات المدفوعات اليدوية ── */}
+      <div className="card-base overflow-hidden">
+        <button onClick={() => setLedgerOpen(o => !o)}
+          className="flex w-full items-center justify-between px-5 py-4 text-right">
+          <h2 className="font-semibold text-[var(--text-1)]">دفتر الأستاذ — تأكيدات المدفوعات</h2>
+          <span className="text-xs text-[var(--text-muted)]">{ledgerOpen ? "إخفاء" : `عرض (${ledger.length})`}</span>
+        </button>
+        {ledgerOpen && (
+          ledger.length === 0 ? (
+            <p className="px-5 pb-4 text-sm text-[var(--text-muted)]">لا توجد قيود بعد</p>
+          ) : (
+            <div className="divide-y divide-[var(--border)] border-t border-[var(--border)]">
+              {ledger.map(e => {
+                const ord = Array.isArray(e.orders) ? e.orders[0] : e.orders;
+                return (
+                  <div key={e.id} className="flex items-center justify-between px-5 py-2.5 text-sm">
+                    <div>
+                      <span className="font-mono text-[var(--text-1)]" dir="ltr">#{ord?.order_number ?? "—"}</span>
+                      <span className="text-[var(--text-muted)]"> · {e.method_name_snapshot ?? e.provider_code}</span>
+                      <span className="text-xs text-[var(--text-muted)]"> · {fmt(e.created_at)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-green-600">{e.amount.toLocaleString("ar")} ﷼</span>
+                      {e.receipt_url && (
+                        <a href={e.receipt_url} target="_blank" rel="noreferrer" className="text-xs text-brand-700 dark:text-accent-400 underline">إيصال</a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+      </div>
 
       {/* ── Confirm Modal ── */}
       {modal && (

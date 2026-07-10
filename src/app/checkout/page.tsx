@@ -279,6 +279,7 @@ export default function CheckoutPage() {
   const [couponError,    setCouponError]   = useState("");
   const [preview,        setPreview]       = useState<PaymentInstruction | null>(null);
   const [previewLoading, setPreviewLoading]= useState(false);
+  const [codBlocked,     setCodBlocked]    = useState(false);
 
   const [form, setForm] = useState({
     full_name:"", phone:"", governorate:"تعز",
@@ -319,6 +320,22 @@ export default function CheckoutPage() {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // تعطيل الدفع عند الاستلام إن كان أحد منتجات السلة غير مؤهَّل له
+  // (العرض فقط — الخادم هو الفيصل الفعلي عند إنشاء الطلب)
+  useEffect(() => {
+    const ids = Array.from(new Set(items.map(i => i.product_id)));
+    if (ids.length === 0) { setCodBlocked(false); return; }
+    sb.from("products").select("id, cod_eligible").in("id", ids)
+      .then(({ data }) => setCodBlocked((data ?? []).some(p => p.cod_eligible === false)));
+  }, [items]);
+
+  // إن كانت "الدفع عند الاستلام" محظورة وهي المختارة حالياً — التبديل لأول وسيلة متاحة أخرى
+  useEffect(() => {
+    if (!codBlocked || providerCode !== "cod") return;
+    const alt = providers.find(p => p.code !== "cod");
+    if (alt) setProviderCode(alt.code);
+  }, [codBlocked, providerCode, providers]);
 
   // معاينة تفاصيل الدفع (حساب/محفظة/نقاط تحويل) لطريقة الدفع المختارة —
   // تظهر للعميل قبل تأكيد الطلب، دون إنشاء أي سجل دفع فعلي
@@ -762,6 +779,12 @@ export default function CheckoutPage() {
                     اختر طريقة الدفع
                   </h2>
 
+                  {codBlocked && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 p-3 text-xs text-amber-700 dark:text-amber-400">
+                      ⚠ الدفع عند الاستلام غير متاح لأحد المنتجات في سلتك — الرجاء اختيار وسيلة دفع أخرى
+                    </div>
+                  )}
+
                   {providers.length === 0 ? (
                     <div className="space-y-3">
                       {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-[var(--border)] animate-pulse"/>)}
@@ -769,6 +792,7 @@ export default function CheckoutPage() {
                   ) : (
                     <div className="space-y-5">
                       {PAYMENT_SECTIONS.map(section => {
+                        if (section.key === "cod" && codBlocked) return null;
                         const list = providers.filter(p => section.types.includes(p.metadata?.type ?? ""));
                         if (list.length === 0) return null;
                         return (

@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { PaymentGateway } from "@/lib/payment/gateway";
 import { notifyCustomerOrderStatus } from "@/lib/notifications";
 import { applyOrderStock } from "@/lib/admin/stock";
+import { recordCashCollection } from "@/lib/driver-cash";
 
 function svc() {
   return createClient(
@@ -82,7 +83,7 @@ export async function PATCH(
     const sb = svc();
     const { data: order } = await sb
       .from("orders")
-      .select("id, order_number, customer_id, payment_status, order_items(variant_id, name_snapshot, quantity)")
+      .select("id, order_number, customer_id, payment_status, total_amount, order_items(variant_id, name_snapshot, quantity)")
       .eq("id", shipment.order_id)
       .single();
 
@@ -98,6 +99,9 @@ export async function PATCH(
             .maybeSingle();
           if (payment && payment.status !== "paid") {
             await PaymentGateway.confirmManual({ paymentId: payment.id, adminUserId: user.id });
+            // تسجيل المبلغ المُحصَّل نقداً في عهدة المندوب — مرة واحدة فقط
+            // بفضل شرط payment_status !== "paid" أعلاه (لا يُعاد الدخول هنا)
+            recordCashCollection(user.id, order.total_amount, order.id, id).catch(() => {});
           }
         }
         // confirmManual (إن نُفِّذ) يضبط حالة الطلب على "confirmed" — نعيدها

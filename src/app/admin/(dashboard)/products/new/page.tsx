@@ -32,7 +32,7 @@ export default function NewProductPage() {
     name_ar:"", name_en:"", slug:"", sku:"", description:"",
     category_id:"", brand_id:"", type:"physical", condition:"new",
     status:"draft", warranty:"", base_price:0, currency:"YER",
-    is_featured:false, tags:[] as string[],
+    is_featured:false, cod_eligible:true, tags:[] as string[],
   });
 
   useEffect(() => {
@@ -222,6 +222,12 @@ export default function NewProductPage() {
                 onChange={e=>setF("is_featured",e.target.checked)}
                 className="h-4 w-4 rounded text-brand-700"/>
               <span className="text-sm text-[var(--text-1)]">منتج مميّز (الرئيسية)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.cod_eligible}
+                onChange={e=>setF("cod_eligible",e.target.checked)}
+                className="h-4 w-4 rounded text-brand-700"/>
+              <span className="text-sm text-[var(--text-1)]">يقبل الدفع عند الاستلام (COD)</span>
             </label>
           </div>
 

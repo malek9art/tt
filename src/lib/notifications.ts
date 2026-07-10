@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 type NotificationType =
-  | "order_new" | "order_paid" | "order_cancelled"
+  | "order_new" | "order_paid" | "order_cancelled" | "order_assigned"
   | "stock_low" | "stock_out" | "system" | "admin_message";
 
 interface NotificationPayload {
@@ -64,6 +64,16 @@ export async function notifyNewOrder(orderNumber: string, orderId: string, total
     title: "طلب جديد",
     body:  `طلب #${orderNumber} — ${total.toLocaleString("ar")} ر.ي`,
     link:  `/admin/orders/${orderId}`,
+  });
+}
+
+export async function notifyDriverAssigned(driverId: string, orderNumber: string, shipmentId: string) {
+  await createNotification({
+    userId: driverId,
+    type:   "order_assigned",
+    title:  "طلبية جديدة",
+    body:   `لديك طلبية جديدة #${orderNumber} — توجّه إلى مركز الأحمدي لبدء إجراءات التوصيل`,
+    link:   `/driver/orders/${shipmentId}`,
   });
 }
 
