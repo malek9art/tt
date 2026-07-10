@@ -6,7 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import {
   ArrowRight, Star, Truck, Phone, Mail, MapPin,
   Package, CheckCircle, XCircle, Clock,
-  Save, Loader2, ToggleLeft, ToggleRight, Trash2
+  Save, Loader2, ToggleLeft, ToggleRight, Trash2, Wallet
 } from "lucide-react";
 import { GOVERNORATES as GOVS } from "@/lib/governorates";
 
@@ -47,6 +47,10 @@ export default function DriverDetailPage() {
   const [newPw,      setNewPw]      = useState("");
   const [pwCopied,   setPwCopied]   = useState(false);
   const [acctBusy,   setAcctBusy]   = useState(false);
+  const [cashEntries, setCashEntries] = useState<Row[]>([]);
+  const [cashBalance, setCashBalance] = useState(0);
+  const [cashLoading, setCashLoading] = useState(true);
+  const [settling,    setSettling]    = useState(false);
   const [form, setForm] = useState({
     vehicle_type:"motorcycle", coverage_zone:"تعز",
     max_orders:5, phone:"", notes:"", is_active:true,
@@ -79,7 +83,29 @@ export default function DriverDetailPage() {
       setShipments((shipsRes.data as Row[]) ?? []);
       setLoading(false);
     });
+
+    fetch(`/api/admin/drivers/${id}/cash`).then(r => r.json()).then(d => {
+      setCashEntries(d.entries ?? []);
+      setCashBalance(d.balance ?? 0);
+      setCashLoading(false);
+    });
   }, [id]);
+
+  const settleCash = async () => {
+    if (!confirm(`تسوية رصيد ${new Intl.NumberFormat("ar-YE").format(cashBalance)} ﷼ وتصفيره؟`)) return;
+    setSettling(true);
+    const res = await fetch(`/api/admin/drivers/${id}/cash`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: "تسوية يدوية من لوحة التحكم" }),
+    });
+    if (res.ok) {
+      const d = await fetch(`/api/admin/drivers/${id}/cash`).then(r => r.json());
+      setCashEntries(d.entries ?? []);
+      setCashBalance(d.balance ?? 0);
+    }
+    setSettling(false);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -258,6 +284,51 @@ export default function DriverDetailPage() {
               }`}>
               {acctBusy ? "..." : form.is_active ? "⛔ تعطيل الحساب (منع الدخول)" : "✅ تنشيط الحساب"}
             </button>
+          </div>
+
+          {/* العهدة النقدية (الدفع عند الاستلام) */}
+          <div className="card-base p-5 space-y-4">
+            <h2 className="font-semibold text-[var(--text-1)] border-b border-[var(--border)] pb-3 flex items-center gap-2">
+              <Wallet size={15} className="text-brand-700"/> العهدة النقدية
+            </h2>
+            {cashLoading ? (
+              <div className="skeleton h-16 w-full rounded-lg"/>
+            ) : (
+              <>
+                <div className="flex items-center justify-between rounded-xl bg-[var(--bg-page)] p-4">
+                  <span className="text-sm text-[var(--text-2)]">الرصيد الحالي</span>
+                  <span className={`text-lg font-bold ${cashBalance > 0 ? "text-amber-600" : "text-green-600"}`}>
+                    {new Intl.NumberFormat("ar-YE").format(cashBalance)} ﷼
+                  </span>
+                </div>
+                {cashBalance > 0 && (
+                  <button onClick={settleCash} disabled={settling}
+                    className="btn-primary w-full justify-center text-sm gap-2">
+                    {settling ? <><Loader2 size={14} className="animate-spin"/> جارٍ التسوية...</> : "تسوية / تسليم للصندوق"}
+                  </button>
+                )}
+                {cashEntries.length > 0 && (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pe-1">
+                    {cashEntries.slice(0, 10).map(e => {
+                      const ord = Array.isArray(e.orders) ? e.orders[0] : e.orders;
+                      const amt = Number(e.amount);
+                      return (
+                        <div key={String(e.id)} className="flex items-center justify-between text-xs py-1.5 border-b border-[var(--border)] last:border-0">
+                          <span className="text-[var(--text-muted)]">
+                            {e.entry_type === "collection" ? `تحصيل #${ord?.order_number ?? "—"}` : "تسوية"}
+                            {" · "}
+                            {new Date(String(e.created_at)).toLocaleDateString("ar-YE")}
+                          </span>
+                          <span className={amt >= 0 ? "text-amber-600" : "text-green-600"}>
+                            {amt >= 0 ? "+" : ""}{new Intl.NumberFormat("ar-YE").format(amt)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="card-base p-5 space-y-4">

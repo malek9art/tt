@@ -24,6 +24,7 @@ interface Driver {
   rating:             number | null;
   joined_at:          string;
   last_active_at:     string | null;
+  cash_balance:       number;
 }
 
 const STATUS_STYLE: Record<string,{label:string;dot:string}> = {
@@ -236,6 +237,16 @@ export default function DriversPage() {
                     {driver.total_deliveries} توصيل كلي
                   </span>
                 </div>
+
+                {/* الرصيد النقدي (عهدة COD) */}
+                {driver.cash_balance > 0 && (
+                  <div className="flex items-center justify-between text-xs rounded-lg bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1.5">
+                    <span className="text-amber-700 dark:text-amber-400">الرصيد النقدي</span>
+                    <span className="font-bold text-amber-700 dark:text-amber-400">
+                      {new Intl.NumberFormat("ar-YE").format(driver.cash_balance)} ﷼
+                    </span>
+                  </div>
+                )}
 
                 {/* أزرار الإجراء */}
                 <div className="flex gap-2 pt-1 border-t border-[var(--border)]">
