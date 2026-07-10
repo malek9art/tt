@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams }           from "next/navigation";
 import Link                    from "next/link";
-import { ArrowRight, Loader2, CheckCircle, Printer, Tag } from "lucide-react";
+import { ArrowRight, Loader2, CheckCircle, Printer, Tag, Receipt, XCircle, RotateCcw } from "lucide-react";
 import LocationView from "@/components/map/LocationView";
 
 const ORDER_STATUSES = [
@@ -16,6 +16,25 @@ const STATUS_AR: Record<string,string> = {
   delivered:"تم التوصيل", completed:"مكتمل", cancelled:"ملغي",
 };
 
+const PAYMENT_STATUS_AR: Record<string,{label:string;cls:string}> = {
+  pending:               { label:"معلّق",           cls:"bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400" },
+  awaiting_confirmation: { label:"بانتظار التأكيد", cls:"bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" },
+  paid:                  { label:"مدفوع",            cls:"bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" },
+  failed:                { label:"فشل",              cls:"bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" },
+  expired:               { label:"منتهي",            cls:"bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+  refunded:              { label:"مُسترجع",          cls:"bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400" },
+};
+
+interface OrderPayment {
+  id: string;
+  provider_code: string;
+  amount: number;
+  currency: string;
+  status: string;
+  receipt_url: string | null;
+  customer_note: string | null;
+}
+
 export default function AdminOrderDetailPage() {
   const { id }   = useParams<{ id: string }>();
   const [order,   setOrder]   = useState<Record<string,unknown>|null>(null);
@@ -23,22 +42,64 @@ export default function AdminOrderDetailPage() {
   const [saving,  setSaving]  = useState(false);
   const [newStatus, setNewStatus] = useState("");
   const [saved,   setSaved]   = useState(false);
+  const [statusError, setStatusError] = useState("");
+  const [payAction, setPayAction] = useState<"reject"|"revision"|null>(null);
+  const [payNote,   setPayNote]   = useState("");
+  const [payBusy,   setPayBusy]   = useState(false);
+  const [payError,  setPayError]  = useState("");
 
-  useEffect(()=>{
-    fetch(`/api/admin/orders/${id}`)
-      .then(r=>r.json())
-      .then(d=>{ setOrder(d); setNewStatus(d.status); setLoading(false); });
-  },[id]);
+  const load = () => fetch(`/api/admin/orders/${id}`)
+    .then(r=>r.json())
+    .then(d=>{ setOrder(d); setNewStatus(d.status); setLoading(false); });
+
+  useEffect(()=>{ load(); },[id]);
 
   const handleUpdateStatus = async () => {
-    setSaving(true); setSaved(false);
-    await fetch(`/api/admin/orders/${id}`,{
+    setSaving(true); setSaved(false); setStatusError("");
+    const res = await fetch(`/api/admin/orders/${id}`,{
       method:"PATCH", headers:{"Content-Type":"application/json"},
       body:JSON.stringify({ status: newStatus }),
     });
+    if (!res.ok) {
+      const d = await res.json().catch(()=>({}));
+      setStatusError(d.error ?? "فشل تحديث الحالة");
+      setSaving(false);
+      return;
+    }
     setOrder(o => o ? {...o, status:newStatus} : o);
     setSaving(false); setSaved(true);
     setTimeout(()=>setSaved(false), 2000);
+  };
+
+  const payments = (order?.payments as OrderPayment[] | undefined) ?? [];
+  const payment  = payments[0];
+
+  const handleConfirmPayment = async () => {
+    if (!payment) return;
+    setPayBusy(true); setPayError("");
+    const res = await fetch(`/api/admin/payments/${payment.id}/confirm`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paidAmount: payment.amount }),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) { setPayError(d.error ?? "فشل التأكيد"); setPayBusy(false); return; }
+    setPayBusy(false);
+    load();
+  };
+
+  const submitPayAction = async () => {
+    if (!payment || !payAction) return;
+    if (!payNote.trim()) { setPayError("الملاحظة مطلوبة"); return; }
+    setPayBusy(true); setPayError("");
+    const path = payAction === "reject" ? "reject" : "request-revision";
+    const res = await fetch(`/api/admin/payments/${payment.id}/${path}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payAction === "reject" ? { reason: payNote } : { note: payNote }),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) { setPayError(d.error ?? "فشل تنفيذ الإجراء"); setPayBusy(false); return; }
+    setPayBusy(false); setPayAction(null); setPayNote("");
+    load();
   };
 
   if (loading) return (
@@ -100,7 +161,85 @@ export default function AdminOrderDetailPage() {
               : "تحديث الحالة"}
           </button>
         </div>
+        {statusError && <p className="text-sm text-red-500 mt-2">⚠ {statusError}</p>}
       </div>
+
+      {/* الدفع وإثبات التحويل — لا تُعرض لطلبات الدفع عند الاستلام (لا إثبات لها) */}
+      {payment && payment.provider_code !== "cod" && (
+        <div className="card-base p-5 space-y-3">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+            <h2 className="font-semibold text-[var(--text-1)] flex items-center gap-2">
+              <Receipt size={15} className="text-brand-700"/> الدفع وإثبات التحويل
+            </h2>
+            <span className={`text-xs px-2 py-0.5 rounded-md ${PAYMENT_STATUS_AR[payment.status]?.cls ?? "bg-gray-100 text-gray-600"}`}>
+              {PAYMENT_STATUS_AR[payment.status]?.label ?? payment.status}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-[var(--text-muted)]">المبلغ</span>
+            <span className="font-bold text-brand-700 dark:text-accent-400">
+              {new Intl.NumberFormat("ar-YE").format(payment.amount)} {payment.currency}
+            </span>
+          </div>
+
+          {(payment.receipt_url || payment.customer_note) ? (
+            <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 p-3 space-y-2 text-sm">
+              {payment.customer_note && (
+                <p className="text-blue-700 dark:text-blue-300 whitespace-pre-line">{payment.customer_note}</p>
+              )}
+              {payment.receipt_url && (
+                <a href={payment.receipt_url} target="_blank" rel="noreferrer"
+                  className="underline font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+                  📎 فتح صورة الإيصال
+                </a>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              ⚠ لم يُرفَق أي إثبات دفع بعد — لا يمكن تأكيد الطلب حتى يرفق العميل صورة الإيصال أو ملاحظة
+            </p>
+          )}
+
+          {payError && <p className="text-sm text-red-500">⚠ {payError}</p>}
+
+          {payment.status !== "paid" && (
+            <div className="flex gap-2 flex-wrap pt-1">
+              <button onClick={handleConfirmPayment}
+                disabled={payBusy || (!payment.receipt_url && !payment.customer_note)}
+                className="btn-primary gap-1.5 text-sm">
+                {payBusy ? <Loader2 size={14} className="animate-spin"/> : <CheckCircle size={14}/>} تأكيد الدفعة
+              </button>
+              <button onClick={() => { setPayAction("revision"); setPayNote(""); setPayError(""); }}
+                className="btn-ghost border border-[var(--border)] gap-1.5 text-sm">
+                <RotateCcw size={14}/> طلب استكمال
+              </button>
+              <button onClick={() => { setPayAction("reject"); setPayNote(""); setPayError(""); }}
+                className="btn-ghost border border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1.5 text-sm">
+                <XCircle size={14}/> رفض
+              </button>
+            </div>
+          )}
+
+          {payAction && (
+            <div className="rounded-xl border border-[var(--border)] p-3 space-y-2">
+              <label className="text-xs font-medium text-[var(--text-2)]">
+                {payAction === "reject" ? "سبب الرفض (يُرسَل للعميل)" : "ما المطلوب استكماله (يُرسَل للعميل)"}
+              </label>
+              <textarea rows={2} value={payNote} onChange={e=>setPayNote(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] px-3 py-2 text-sm text-[var(--text-1)] outline-none focus:border-brand-500 resize-none"/>
+              <div className="flex gap-2">
+                <button onClick={submitPayAction} disabled={payBusy}
+                  className={`btn-primary text-sm gap-1.5 ${payAction === "reject" ? "bg-red-600 hover:bg-red-700 border-red-600" : ""}`}>
+                  {payBusy ? <Loader2 size={14} className="animate-spin"/> : null}
+                  {payAction === "reject" ? "رفض الدفعة" : "إرسال الطلب"}
+                </button>
+                <button onClick={() => setPayAction(null)} className="btn-ghost border border-[var(--border)] text-sm">إلغاء</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* المنتجات */}
       <div className="card-base overflow-hidden">

@@ -35,9 +35,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // الحالة السابقة — لنعرف إن كان هذا إلغاءً جديداً فلا نُرجع المخزون مرتين
   const { data: prev } = await supabase
     .from("orders")
-    .select("status, customer_id, order_items(variant_id, name_snapshot, quantity)")
+    .select("status, customer_id, order_items(variant_id, name_snapshot, quantity), payments(provider_code, status, receipt_url, customer_note)")
     .eq("id", id)
     .single();
+
+  // لا يكتمل الطلب (أي حالة غير pending/cancelled) قبل إرفاق إثبات الدفع
+  // لطرق الدفع اليدوية — نفس القاعدة المُطبَّقة في PaymentGateway.confirmManual،
+  // مطلوبة هنا أيضاً لأن هذه القائمة المنسدلة تُغيّر orders.status مباشرة
+  // بمعزل تام عن مسار تأكيد الدفعة
+  if (body.status && !["pending", "cancelled"].includes(body.status)) {
+    const rawPayment = prev?.payments as { provider_code: string; status: string; receipt_url: string | null; customer_note: string | null } | { provider_code: string; status: string; receipt_url: string | null; customer_note: string | null }[] | null;
+    const payment = Array.isArray(rawPayment) ? rawPayment[0] : rawPayment;
+    if (payment && payment.provider_code !== "cod" && payment.status !== "paid"
+      && !payment.receipt_url && !payment.customer_note) {
+      return NextResponse.json({
+        error: "لا يمكن تغيير حالة الطلب قبل إرفاق إثبات الدفع (صورة الإيصال أو ملاحظة) وتأكيده",
+      }, { status: 400 });
+    }
+  }
 
   const updateData: Record<string, string> = {};
   if (body.status)         updateData.status = body.status;
