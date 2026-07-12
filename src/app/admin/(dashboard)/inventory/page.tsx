@@ -592,7 +592,8 @@ export default function InventoryPage() {
                 <p>• الأعمدة: اسم المنتج، الاسم الإنجليزي، SKU، الوصف، الفئة، العلامة التجارية، السعر، السعر قبل الخصم، الحالة، حالة النشر، النوع، الضمان، الوسوم، الكمية، حد إعادة الطلب، كمية إعادة الطلب، الموقع</p>
                 <p>• عمود <strong>الفئة</strong> يجب أن يطابق أحد الأسماء التالية بالضبط: {CATEGORY_HINT}</p>
                 <p>• الوسوم المتعددة داخل الخلية الواحدة تُفصل بفاصلة منقوطة (؛)</p>
-                <p>• صيغ مقبولة: CSV أو XLSX (محوّل لـ CSV)</p>
+                <p>• صيغ مقبولة: CSV أو XLSX مباشرة</p>
+                <p>• يقبل النظام أيضاً كشوف مخزون بأعمدة مختلفة (رقم الصنف، الصنف، الاسم الاجنبي، الكمية المتوفرة، المخزن...) — يستنتج تلقائياً الفئة والعلامة التجارية عند غيابها من الملف</p>
                 <p>• <a href="/api/admin/inventory/template" className="underline font-semibold">📥 حمّل قالب جاهز بأمثلة</a> — أو <a href="/api/admin/inventory/export" className="underline font-semibold">📤 صدّر كل منتجاتك الحالية</a> لتعديلها جماعياً ثم إعادة رفعها</p>
               </div>
 
@@ -600,8 +601,9 @@ export default function InventoryPage() {
                 onClick={() => fileRef.current?.click()}
                 className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--border)] p-8 cursor-pointer hover:border-brand-500 transition-colors">
                 <Upload size={28} className="text-[var(--text-muted)]"/>
-                <p className="text-sm text-[var(--text-muted)]">انقر لاختيار ملف CSV</p>
-                <input ref={fileRef} type="file" accept=".csv,text/csv"
+                <p className="text-sm text-[var(--text-muted)]">انقر لاختيار ملف CSV أو Excel</p>
+                <input ref={fileRef} type="file"
+                  accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) importCsv(f); }}/>
               </div>

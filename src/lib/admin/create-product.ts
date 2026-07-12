@@ -20,10 +20,14 @@ export interface CreateProductInput {
   warranty?:         string | null;
   tags?:             string[];
   is_featured?:      boolean;
-  // المخزون الابتدائي
+  attributes?:       Record<string, unknown>;
+  // المخزون الابتدائي — مخزن افتراضي وحيد (السلوك القديم)
   quantity?:         number;
   reorder_level?:    number;
   location?:         string | null;
+  // مخزون موزَّع على عدة مخازن (كشوف مخزون واقعية بأكثر من مخزن) —
+  // يتجاوز quantity/location أعلاه إن وُجد
+  warehouseQuantities?: Array<{ warehouse_id: string; quantity: number; location?: string | null }>;
 }
 
 export type CreateProductResult =
@@ -45,10 +49,14 @@ export async function createProductWithInventory(
   if (!name || name.length < 2) {
     return { ok: false, status: 400, error: "أدخل اسم المنتج" };
   }
-  const price = Number(input.base_price);
-  if (!Number.isFinite(price) || price <= 0) {
-    return { ok: false, status: 400, error: "أدخل سعراً صحيحاً أكبر من صفر" };
+  const priceRaw = Number(input.base_price);
+  if (!Number.isFinite(priceRaw) || priceRaw < 0) {
+    return { ok: false, status: 400, error: "أدخل سعراً صحيحاً" };
   }
+  // منتج بلا سعر (كشف مخزون بلا أسعار مثلاً) يُنشأ كمسودة مخفية عن
+  // العملاء بدل رفضه بالكامل — الإدارة تُسعِّره وتنشره لاحقاً يدوياً
+  const price = priceRaw;
+  const status: "draft" | "published" | "archived" = price <= 0 ? "draft" : (input.status ?? "published");
 
   const sku = input.sku?.trim() || generateSku(name);
 
@@ -81,11 +89,12 @@ export async function createProductWithInventory(
       category_id: input.category_id || null,
       brand_id:    input.brand_id || null,
       condition:   input.condition ?? "new",
-      status:      input.status ?? "published",
+      status,
       type:        input.type ?? "physical",
       warranty:    input.warranty?.trim() || null,
       tags:        input.tags ?? [],
       is_featured: input.is_featured ?? false,
+      attributes:  input.attributes ?? {},
       created_by:  userId,
     })
     .select("id, slug")
@@ -112,28 +121,40 @@ export async function createProductWithInventory(
     return { ok: false, status: 500, error: vErr?.message ?? "فشل إنشاء متغيّر المنتج" };
   }
 
-  // 3) سجل المخزون في المخزن الرئيسي
-  const initialQty = Math.max(0, Math.floor(input.quantity ?? 0));
-  const { data: warehouse } = await supabase
-    .from("warehouses").select("id").limit(1).maybeSingle();
-  if (warehouse) {
+  // 3) سجل(ات) المخزون — إما موزّعة على عدة مخازن (كشوف واقعية) أو
+  // بالمخزن الافتراضي الوحيد (السلوك القديم لـ«الإضافة السريعة»)
+  const reorderLevel = Math.max(0, Math.floor(input.reorder_level ?? 5));
+  const rows: Array<{ warehouse_id: string; quantity: number; location: string | null }> = [];
+  if (input.warehouseQuantities?.length) {
+    for (const wq of input.warehouseQuantities) {
+      rows.push({ warehouse_id: wq.warehouse_id, quantity: Math.max(0, Math.floor(wq.quantity)), location: wq.location || null });
+    }
+  } else {
+    const { data: warehouse } = await supabase
+      .from("warehouses").select("id").limit(1).maybeSingle();
+    if (warehouse) {
+      rows.push({ warehouse_id: warehouse.id, quantity: Math.max(0, Math.floor(input.quantity ?? 0)), location: input.location || null });
+    }
+  }
+
+  for (const row of rows) {
     const { error: iErr } = await supabase.from("inventory").insert({
       variant_id:    variant.id,
-      warehouse_id:  warehouse.id,
-      quantity:      initialQty,
-      reorder_level: Math.max(0, Math.floor(input.reorder_level ?? 5)),
-      location:      input.location || null,
+      warehouse_id:  row.warehouse_id,
+      quantity:      row.quantity,
+      reorder_level: reorderLevel,
+      location:      row.location,
     });
-    if (iErr) console.error("create-product inventory:", iErr);
-    else if (initialQty > 0) {
+    if (iErr) { console.error("create-product inventory:", iErr); continue; }
+    if (row.quantity > 0) {
       // قيد الرصيد الافتتاحي في سجل الحركات
       await supabase.from("inventory_movements").insert({
         variant_id:      variant.id,
         product_name:    name,
         movement_type:   "initial",
-        quantity:        initialQty,
+        quantity:        row.quantity,
         quantity_before: 0,
-        quantity_after:  initialQty,
+        quantity_after:  row.quantity,
         reason:          "رصيد افتتاحي عند إنشاء المنتج",
         reference_type:  "quick_add",
         created_by:      userId,

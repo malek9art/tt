@@ -16,7 +16,7 @@ const ICONS: Record<string, React.ElementType> = {
   payments: HiBanknotes, customers: HiUsers, inventory: HiBuildingStorefront,
   analytics: HiChartBar, marketing: HiTag, banners: HiPhoto,
   notifications: HiBell, drivers: HiTruck, settings: HiCog6Tooth, users: HiUserGroup,
-  categories: HiFolder,
+  categories: HiFolder, brands: HiTag,
 };
 
 const sb = createBrowserClient(
